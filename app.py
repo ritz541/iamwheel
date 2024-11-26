@@ -11,6 +11,7 @@ import random
 import threading
 import time
 import uuid
+from functools import wraps
 
 # Load environment variables
 load_dotenv()
@@ -48,32 +49,27 @@ class GameState:
 game_state = GameState()
 
 class User(UserMixin):
-    def __init__(self, user_data):
-        self.user_data = user_data
-        self.id = str(user_data['_id'])
-        
-    def get_id(self):
-        return str(self.user_data['_id'])
-
-    @property
-    def is_authenticated(self):
-        return True
+    def __init__(self, user_id):
+        self.id = user_id
+        user_data = db.users.find_one({'_id': ObjectId(user_id)})
+        self.user_data = user_data if user_data else {}
 
     @property
     def is_active(self):
-        return True
+        return not self.user_data.get('is_blocked', False)
 
-    @property
-    def is_anonymous(self):
-        return False
+    @staticmethod
+    def get(user_id):
+        if not user_id:
+            return None
+        user = db.users.find_one({'_id': ObjectId(user_id)})
+        if user:
+            return User(str(user['_id']))
+        return None
 
 @login_manager.user_loader
 def load_user(user_id):
-    try:
-        user_data = db.users.find_one({'_id': ObjectId(user_id)})
-        return User(user_data) if user_data else None
-    except:
-        return None
+    return User.get(user_id)
 
 # Timer function
 def countdown_timer():
@@ -208,27 +204,32 @@ def register():
         phone = request.form.get('phone')
         password = request.form.get('password')
         
-        if db.users.find_one({'$or': [{'username': username}, {'phone': phone}]}):
-            flash('Username or phone number already exists')
+        if db.users.find_one({'phone': phone}):
+            flash('Phone number already registered')
             return redirect(url_for('register'))
         
+        # Hash the password
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         
-        user_data = {
+        # Create user document
+        user = {
             'username': username,
             'phone': phone,
             'password': hashed_password,
             'wallet_balance': 0,
-            'created_at': datetime.utcnow()
+            'is_admin': False,  # Default to non-admin
+            'is_blocked': False,  # Default to not blocked
+            'created_at': datetime.utcnow(),
+            'last_active': datetime.utcnow()
         }
         
-        result = db.users.insert_one(user_data)
-        user_data['_id'] = result.inserted_id
+        # First user is automatically an admin
+        if db.users.count_documents({}) == 0:
+            user['is_admin'] = True
         
-        user = User(user_data)
-        login_user(user)
-        flash('Registration successful!')
-        return redirect(url_for('game'))
+        db.users.insert_one(user)
+        flash('Registration successful! Please login.')
+        return redirect(url_for('login'))
     
     return render_template('register.html')
 
@@ -240,7 +241,7 @@ def login():
         
         user_data = db.users.find_one({'phone': phone})
         if user_data and bcrypt.checkpw(password.encode('utf-8'), user_data['password']):
-            user = User(user_data)
+            user = User(user_data['_id'])
             session.permanent = True
             login_user(user)
             return redirect(url_for('game'))
@@ -346,6 +347,163 @@ def request_withdrawal():
     db.transactions.insert_one(transaction)
     flash('Withdrawal request submitted successfully!')
     return redirect(url_for('wallet'))
+
+# Admin required decorator
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.user_data.get('is_admin', False):
+            flash('Access denied. Admin privileges required.')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Admin routes
+@app.route('/admin')
+@login_required
+@admin_required
+def admin():
+    # Get filter parameters
+    txn_type = request.args.get('type', 'all')
+    txn_status = request.args.get('status', 'all')
+    
+    # Build transaction query
+    txn_query = {}
+    if txn_type != 'all':
+        txn_query['type'] = txn_type
+    if txn_status != 'all':
+        txn_query['status'] = txn_status
+    
+    # Get transactions
+    transactions = list(db.transactions.find(txn_query).sort('created_at', -1))
+    for txn in transactions:
+        if txn['status'] == 'completed':
+            txn['status_color'] = 'success'
+        elif txn['status'] == 'pending':
+            txn['status_color'] = 'warning'
+        else:
+            txn['status_color'] = 'danger'
+    
+    # Get users with game statistics
+    users = list(db.users.find())
+    for user in users:
+        # Convert ObjectId to string for comparison
+        user_id_str = str(user['_id'])
+        
+        # Count games played
+        user['games_played'] = db.games.count_documents({
+            'players': {'$in': [user_id_str]}
+        })
+        
+        # Count games won
+        user['games_won'] = db.games.count_documents({
+            'winner': user_id_str
+        })
+        
+        # Calculate total earnings from game wins
+        winning_games = db.games.find({
+            'winner': user_id_str,
+            'status': 'completed'
+        })
+        
+        total_earnings = 0
+        for game in winning_games:
+            # Winner gets 80% of total pool
+            total_pool = game.get('entry_fee', 10) * len(game.get('players', []))
+            winner_earnings = total_pool * 0.8
+            total_earnings += winner_earnings
+        
+        user['total_earnings'] = total_earnings
+    
+    # Calculate game statistics
+    completed_games = list(db.games.find({'status': 'completed'}))
+    platform_earnings = 0
+    for game in completed_games:
+        total_pool = game.get('entry_fee', 10) * len(game.get('players', []))
+        platform_earnings += total_pool * 0.2  # Platform gets 20% of each game's pool
+    
+    stats = {
+        'total_games': db.games.count_documents({}),
+        'total_players': db.users.count_documents({}),
+        'platform_earnings': platform_earnings,
+        'active_players': db.users.count_documents({
+            'last_active': {'$gte': datetime.utcnow() - timedelta(days=7)}
+        })
+    }
+    
+    return render_template('admin.html', 
+                         transactions=transactions,
+                         users=users,
+                         stats=stats)
+
+@app.route('/admin/transaction/<action>/<transaction_id>', methods=['POST'])
+@login_required
+@admin_required
+def handle_transaction(action, transaction_id):
+    transaction = db.transactions.find_one({'transaction_id': transaction_id})
+    if not transaction:
+        return jsonify({'success': False, 'message': 'Transaction not found'})
+    
+    if transaction['status'] != 'pending':
+        return jsonify({'success': False, 'message': 'Transaction is not pending'})
+    
+    if action == 'approve':
+        # Update transaction status
+        db.transactions.update_one(
+            {'transaction_id': transaction_id},
+            {'$set': {'status': 'completed'}}
+        )
+        
+        # Update user's wallet balance for deposits
+        if transaction['type'] == 'deposit':
+            db.users.update_one(
+                {'_id': transaction['user_id']},
+                {'$inc': {'wallet_balance': transaction['amount']}}
+            )
+        
+        return jsonify({'success': True, 'message': 'Transaction approved'})
+    
+    elif action == 'reject':
+        # Update transaction status
+        db.transactions.update_one(
+            {'transaction_id': transaction_id},
+            {'$set': {'status': 'rejected'}}
+        )
+        
+        # Refund user's wallet balance for withdrawals
+        if transaction['type'] == 'withdrawal':
+            db.users.update_one(
+                {'_id': transaction['user_id']},
+                {'$inc': {'wallet_balance': transaction['amount']}}
+            )
+        
+        return jsonify({'success': True, 'message': 'Transaction rejected'})
+    
+    return jsonify({'success': False, 'message': 'Invalid action'})
+
+@app.route('/admin/user/<action>/<user_id>', methods=['POST'])
+@login_required
+@admin_required
+def handle_user(action, user_id):
+    user = db.users.find_one({'_id': ObjectId(user_id)})
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found'})
+    
+    if action == 'block':
+        db.users.update_one(
+            {'_id': ObjectId(user_id)},
+            {'$set': {'is_blocked': True}}
+        )
+        return jsonify({'success': True, 'message': 'User blocked'})
+    
+    elif action == 'unblock':
+        db.users.update_one(
+            {'_id': ObjectId(user_id)},
+            {'$set': {'is_blocked': False}}
+        )
+        return jsonify({'success': True, 'message': 'User unblocked'})
+    
+    return jsonify({'success': False, 'message': 'Invalid action'})
 
 if __name__ == '__main__':
     start_new_game()

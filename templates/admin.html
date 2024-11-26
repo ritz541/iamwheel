@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-2 d-none d-md-block bg-light sidebar">
+            <div class="position-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#transactions" data-bs-toggle="tab">
+                            Transactions
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#users" data-bs-toggle="tab">
+                            Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#game-stats" data-bs-toggle="tab">
+                            Game Statistics
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="col-md-10 ms-sm-auto px-md-4">
+            <div class="tab-content" id="myTabContent">
+                <!-- Transactions Tab -->
+                <div class="tab-pane fade show active" id="transactions">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1>Transactions</h1>
+                    </div>
+                    
+                    <!-- Transaction Filters -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <select class="form-select" id="txn-type-filter">
+                                <option value="all">All Types</option>
+                                <option value="deposit">Deposits</option>
+                                <option value="withdrawal">Withdrawals</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="txn-status-filter">
+                                <option value="all">All Status</option>
+                                <option value="pending">Pending</option>
+                                <option value="completed">Completed</option>
+                                <option value="rejected">Rejected</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Transactions Table -->
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Transaction ID</th>
+                                    <th>Username</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for txn in transactions %}
+                                <tr>
+                                    <td>{{ txn.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>{{ txn.transaction_id }}</td>
+                                    <td>{{ txn.username }}</td>
+                                    <td>{{ txn.type }}</td>
+                                    <td>₹{{ txn.amount }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ txn.status_color }}">
+                                            {{ txn.status }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if txn.status == 'pending' %}
+                                        <button class="btn btn-success btn-sm approve-btn" 
+                                                data-txn-id="{{ txn.transaction_id }}"
+                                                data-action="approve">
+                                            Approve
+                                        </button>
+                                        <button class="btn btn-danger btn-sm reject-btn"
+                                                data-txn-id="{{ txn.transaction_id }}"
+                                                data-action="reject">
+                                            Reject
+                                        </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Users Tab -->
+                <div class="tab-pane fade" id="users">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1>Users</h1>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Phone</th>
+                                    <th>Wallet Balance</th>
+                                    <th>Games Played</th>
+                                    <th>Games Won</th>
+                                    <th>Total Earnings</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                <tr>
+                                    <td>{{ user.username }}</td>
+                                    <td>{{ user.phone }}</td>
+                                    <td>₹{{ user.wallet_balance }}</td>
+                                    <td>{{ user.games_played }}</td>
+                                    <td>{{ user.games_won }}</td>
+                                    <td>₹{{ user.total_earnings }}</td>
+                                    <td>
+                                        <button class="btn btn-warning btn-sm block-btn"
+                                                data-user-id="{{ user._id }}"
+                                                data-action="{{ 'unblock' if user.is_blocked else 'block' }}">
+                                            {{ 'Unblock' if user.is_blocked else 'Block' }}
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Game Statistics Tab -->
+                <div class="tab-pane fade" id="game-stats">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1>Game Statistics</h1>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">Total Games</h5>
+                                    <h2 class="card-text">{{ stats.total_games }}</h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">Total Players</h5>
+                                    <h2 class="card-text">{{ stats.total_players }}</h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">Platform Earnings</h5>
+                                    <h2 class="card-text">₹{{ stats.platform_earnings }}</h2>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">Active Players</h5>
+                                    <h2 class="card-text">{{ stats.active_players }}</h2>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Transaction Details Modal -->
+<div class="modal fade" id="txnDetailsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Transaction Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Content will be loaded dynamically -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle transaction approval/rejection
+    document.querySelectorAll('.approve-btn, .reject-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const txnId = this.dataset.txnId;
+            const action = this.dataset.action;
+            
+            fetch(`/admin/transaction/${action}/${txnId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message);
+                }
+            });
+        });
+    });
+
+    // Handle user blocking/unblocking
+    document.querySelectorAll('.block-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const userId = this.dataset.userId;
+            const action = this.dataset.action;
+            
+            fetch(`/admin/user/${action}/${userId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message);
+                }
+            });
+        });
+    });
+
+    // Transaction filters
+    const typeFilter = document.getElementById('txn-type-filter');
+    const statusFilter = document.getElementById('txn-status-filter');
+
+    function applyFilters() {
+        const type = typeFilter.value;
+        const status = statusFilter.value;
+        window.location.href = `/admin?type=${type}&status=${status}`;
+    }
+
+    typeFilter.addEventListener('change', applyFilters);
+    statusFilter.addEventListener('change', applyFilters);
+});
+</script>
+{% endblock %}
