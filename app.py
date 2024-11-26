@@ -10,6 +10,7 @@ from bson import ObjectId
 import random
 import threading
 import time
+import uuid
 
 # Load environment variables
 load_dotenv()
@@ -257,6 +258,94 @@ def logout():
 @login_required
 def game():
     return render_template('game.html')
+
+@app.route('/wallet')
+@login_required
+def wallet():
+    # Get user's transactions
+    transactions = list(db.transactions.find(
+        {'user_id': ObjectId(current_user.id)}
+    ).sort('created_at', -1))
+    
+    # Add status color for badges
+    for transaction in transactions:
+        if transaction['status'] == 'completed':
+            transaction['status_color'] = 'success'
+        elif transaction['status'] == 'pending':
+            transaction['status_color'] = 'warning'
+        else:
+            transaction['status_color'] = 'danger'
+    
+    return render_template('wallet.html', transactions=transactions)
+
+@app.route('/request_deposit', methods=['POST'])
+@login_required
+def request_deposit():
+    amount = int(request.form.get('amount', 0))
+    
+    # Validate amount
+    if amount < 20 or amount > 1000:
+        flash('Invalid deposit amount. Must be between ₹20 and ₹1000')
+        return redirect(url_for('wallet'))
+    
+    # Create transaction record
+    transaction = {
+        'user_id': ObjectId(current_user.id),
+        'type': 'deposit',
+        'amount': amount,
+        'status': 'pending',
+        'created_at': datetime.utcnow(),
+        'transaction_id': str(uuid.uuid4()),
+        'username': current_user.user_data['username']
+    }
+    
+    db.transactions.insert_one(transaction)
+    flash('Deposit request submitted successfully! Admin will verify and update your balance.')
+    return redirect(url_for('wallet'))
+
+@app.route('/request_withdrawal', methods=['POST'])
+@login_required
+def request_withdrawal():
+    amount = int(request.form.get('amount', 0))
+    bank_account = request.form.get('bank_account')
+    ifsc_code = request.form.get('ifsc_code')
+    account_holder = request.form.get('account_holder')
+    
+    # Validate amount
+    if amount < 50 or amount > 500:
+        flash('Invalid withdrawal amount. Must be between ₹50 and ₹500')
+        return redirect(url_for('wallet'))
+    
+    # Check if user has sufficient balance
+    if current_user.user_data['wallet_balance'] < amount:
+        flash('Insufficient balance')
+        return redirect(url_for('wallet'))
+    
+    # Create transaction record
+    transaction = {
+        'user_id': ObjectId(current_user.id),
+        'type': 'withdrawal',
+        'amount': amount,
+        'status': 'pending',
+        'created_at': datetime.utcnow(),
+        'transaction_id': str(uuid.uuid4()),
+        'username': current_user.user_data['username'],
+        'bank_details': {
+            'account_number': bank_account,
+            'ifsc_code': ifsc_code,
+            'account_holder': account_holder
+        }
+    }
+    
+    # Deduct amount from wallet immediately for withdrawal
+    db.users.update_one(
+        {'_id': ObjectId(current_user.id)},
+        {'$inc': {'wallet_balance': -amount}}
+    )
+    
+    db.transactions.insert_one(transaction)
+    flash('Withdrawal request submitted successfully!')
+    return redirect(url_for('wallet'))
 
 if __name__ == '__main__':
     start_new_game()

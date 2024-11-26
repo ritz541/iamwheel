@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <!-- Wallet Balance Card -->
+        <div class="col-md-12 mb-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h3>Wallet Balance</h3>
+                    <h2 class="text-primary">₹{{ current_user.user_data.wallet_balance }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- Deposit Section -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Deposit Money</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('request_deposit') }}">
+                        <div class="mb-3">
+                            <label for="deposit_amount" class="form-label">Amount (₹20 - ₹1000)</label>
+                            <input type="number" class="form-control" id="deposit_amount" name="amount" 
+                                   min="20" max="1000" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Payment QR Code</label>
+                            <div class="text-center">
+                                <img src="{{ url_for('static', filename='images/payment_qr.jpg') }}" 
+                                     alt="Payment QR" class="img-fluid mb-2" style="max-width: 200px;">
+                            </div>
+                            <div class="alert alert-info">
+                                1. Scan QR and make payment
+                                2. Enter amount and submit request
+                                3. Admin will verify and update balance
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Submit Deposit Request</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Withdrawal Section -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Withdraw Money</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('request_withdrawal') }}">
+                        <div class="mb-3">
+                            <label for="withdrawal_amount" class="form-label">Amount (₹50 - ₹500)</label>
+                            <input type="number" class="form-control" id="withdrawal_amount" name="amount" 
+                                   min="50" max="500" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="bank_account" class="form-label">Bank Account Number</label>
+                            <input type="text" class="form-control" id="bank_account" name="bank_account" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="ifsc_code" class="form-label">IFSC Code</label>
+                            <input type="text" class="form-control" id="ifsc_code" name="ifsc_code" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="account_holder" class="form-label">Account Holder Name</label>
+                            <input type="text" class="form-control" id="account_holder" name="account_holder" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Submit Withdrawal Request</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transaction History -->
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Transaction History</h4>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for transaction in transactions %}
+                                <tr>
+                                    <td>{{ transaction.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>{{ transaction.type }}</td>
+                                    <td>₹{{ transaction.amount }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ transaction.status_color }}">
+                                            {{ transaction.status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
