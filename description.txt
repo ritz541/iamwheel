@@ -1,0 +1,101 @@
+### **Final Description for Casino-Style Spinning Wheel Game MVP**
+
+---
+
+### **Game Overview**
+
+This is a multiplayer casino-style spinning wheel game where users pay ₹10 to participate. Players are identified by unique random IDs (generated at registration) displayed on the wheel. The game randomly selects one winner after a 5-minute countdown. The winner receives 80% of the total prize pool, while 20% is retained as a platform fee.
+
+---
+
+### **Key Features**
+
+### **Gameplay Flow**:
+
+1. **Joining Phase**:
+    - Players can join the game within the 5-minute joining phase.
+    - Entry fee: ₹10 (deducted from the user’s wallet).
+    - If only one player joins by the end of 5 minutes, the round is canceled, and the entry fee is refunded to the player's wallet (no platform fee deduction).
+    - After the 5-minute joining phase, no further entries are allowed for the current round.
+2. **Wheel Spin**:
+    - After the joining phase, the wheel spins to select a winner randomly.
+    - The winner is notified, and their winnings (80% of the total prize pool) are added to their wallet.
+3. **Next Round**:
+    - A new game starts immediately after the current round ends, repeating the 5-minute cycle.
+
+---
+
+### **User Features**
+
+1. **Wallet System**:
+    - Users add money to their wallets via QR payment.
+    - Admin manually verifies payments and updates wallet balances.
+    - Withdrawals are initiated by users and require admin approval. Withdrawal details (e.g., bank account) are provided during registration or at the time of withdrawal.
+    - All wallet transactions are logged and visible to the respective user and admin.
+2. **Notifications**:
+    - Flash notifications for immediate feedback (e.g., “Refund added to wallet”).
+    - Persistent notifications stored in a database, viewable under a dedicated notifications section on the user dashboard.
+3. **Game History**:
+    - Users can view their game history, including participation details, prize pools, and round results.
+4. **Dynamic Wheel**:
+    - The wheel dynamically adjusts based on the number of participants (1-20 players).
+
+---
+
+### **Admin Panel**
+
+1. **Two-Password Security**:
+    - Admins must enter two passwords to access the panel.
+2. **Wallet Management**:
+    - View and update user balances for deposits and withdrawals.
+    - Approve or decline withdrawal requests.
+3. **Revenue and Stats**:
+    - Revenue is calculated as:**Revenue = Total Entry Fees - (Refunds + Prizes Distributed)**
+    - Stats include:
+        - Total revenue for the day.
+        - Per-round revenue and prize pool details.
+        - Number of players per round.
+4. **Game History**:
+    - Complete round logs, including:
+        - Number of participants.
+        - Prize pool amount.
+        - Winner details (ID and prize).
+        - Timestamps for spin and joining phase.
+
+---
+
+### **Technical Implementation**
+
+### **Tech Stack**:
+
+- **Backend**: Flask
+- **Database**: MongoDB (game data, user data, transaction logs)
+- **Real-Time Updates**: Redis (Pub-Sub), Socket.IO
+- **Frontend**: HTML, CSS, Bootstrap, TailwindCSS
+- **Randomness**: Cryptographically secure RNG for fair winner selection.
+
+### **Backend Workflow**:
+
+1. **Joining Phase**:
+    - Validate wallet balance and deduct ₹10 upon joining.
+    - Add player ID to the round's participant list.
+    - Handle refunds if only one player joins.
+2. **Wheel Spin**:
+    - Randomly select a winner from the participant list.
+    - Distribute winnings to the winner's wallet.
+3. **Notifications**:
+    - Log events (e.g., refund processed, winnings added).
+    - Display real-time updates via WebSockets.
+4. **Admin Panel**:
+    - Secure wallet update operations with detailed logs.
+    - Display daily revenue and per-round stats.
+
+---
+
+### **Future Expansion**
+
+While the MVP focuses on a single game type, the system is designed for scalability to support multiple game variations or enhanced admin features (e.g., exportable reports, real-time dashboards).
+
+---
+
+This description is ready to be fed into an LLM for generating code. Let me know if you want me to provide sample prompts or any additional specifications!

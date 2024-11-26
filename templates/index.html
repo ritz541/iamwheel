@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="text-center">
+    <h1 class="mb-4">Welcome to Wheel Game</h1>
+    {% if current_user.is_authenticated %}
+        <p class="lead">Ready to play? Go to the game page!</p>
+        <a href="{{ url_for('game') }}" class="btn btn-primary btn-lg">Play Now</a>
+    {% else %}
+        <p class="lead">Login or register to start playing!</p>
+        <div class="mt-3">
+            <a href="{{ url_for('login') }}" class="btn btn-primary me-2">Login</a>
+            <a href="{{ url_for('register') }}" class="btn btn-success">Register</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
