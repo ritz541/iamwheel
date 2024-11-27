@@ -71,10 +71,10 @@
                         <td>{{ transaction.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                         <td>
                             {% if transaction.status == 'pending' %}
-                            <button class="btn btn-success btn-sm" onclick="handleTransaction('{{ transaction._id }}', 'approve')">
+                            <button class="btn btn-success btn-sm" onclick="handleTransaction('{{ transaction.transaction_id }}', 'approve')">
                                 Approve
                             </button>
-                            <button class="btn btn-danger btn-sm" onclick="handleTransaction('{{ transaction._id }}', 'reject')">
+                            <button class="btn btn-danger btn-sm" onclick="handleTransaction('{{ transaction.transaction_id }}', 'reject')">
                                 Reject
                             </button>
                             {% endif %}
@@ -137,15 +137,11 @@
 
 <script>
 function handleTransaction(transactionId, action) {
-    fetch('/admin/transaction', {
+    fetch(`/admin/transaction/${action}/${transactionId}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            transaction_id: transactionId,
-            action: action
-        })
+        }
     })
     .then(response => response.json())
     .then(data => {

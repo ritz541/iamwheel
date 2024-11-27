@@ -9,20 +9,45 @@ class WheelGame {
         });
         
         this.players = [];
-        this.currentRotation = 0;
+        this.usedEmojis = new Set();
+        this.isBreakTime = false;
         this.setupElements();
         this.setupSocketListeners();
+        this.initializeGrid();
+        this.createPopupElements();
         
         console.log('WheelGame initialized');
     }
 
+    createPopupElements() {
+        // Create winner popup
+        const popup = document.createElement('div');
+        popup.className = 'winner-popup';
+        popup.innerHTML = `
+            <div class="title">Winner!</div>
+            <div class="emoji"></div>
+            <div class="player-name"></div>
+        `;
+        document.body.appendChild(popup);
+        this.winnerPopup = popup;
+
+        // Create grid expansion notice
+        const notice = document.createElement('div');
+        notice.className = 'grid-expansion-notice';
+        this.wheelContainer.appendChild(notice);
+        this.expansionNotice = notice;
+    }
+
     setupElements() {
         this.wheelContainer = document.querySelector('.wheel-container');
-        this.wheel = document.querySelector('.wheel');
         this.joinButton = document.getElementById('joinGame');
         this.statusElement = document.querySelector('.game-status');
         this.timerElement = document.getElementById('countdown');
         this.playersListElement = document.querySelector('.players-list');
+        
+        // Initialize grid container
+        this.wheelContainer.innerHTML = '<div class="grid-container grid-2"></div>';
+        this.gridContainer = this.wheelContainer.querySelector('.grid-container');
         
         if (this.joinButton) {
             this.joinButton.onclick = (e) => {
@@ -32,69 +57,136 @@ class WheelGame {
         }
     }
 
-    updateWheel() {
-        if (!this.wheel) return;
+    showWinnerPopup(winner, duration = 5000) {
+        const popup = this.winnerPopup;
+        popup.querySelector('.emoji').textContent = winner.emoji;
+        popup.querySelector('.player-name').textContent = winner.username;
+        popup.classList.add('show');
         
-        // Clear existing segments
-        this.wheel.innerHTML = '';
+        setTimeout(() => {
+            popup.classList.remove('show');
+        }, duration);
+    }
+
+    showExpansionNotice() {
+        this.expansionNotice.textContent = 'Grid expanding...';
+        this.expansionNotice.classList.add('show');
         
-        const segmentCount = Math.max(8, this.players.length);
-        const segmentAngle = 360 / segmentCount;
+        setTimeout(() => {
+            this.expansionNotice.classList.remove('show');
+        }, 2000);
+    }
+
+    updateTimer(time, isBreak = false) {
+        if (!this.timerElement) return;
         
-        // Create segments for each player
-        this.players.forEach((player, index) => {
-            const segment = document.createElement('div');
-            segment.className = 'wheel-segment';
-            segment.style.transform = `rotate(${index * segmentAngle}deg)`;
-            
-            // Add player name
-            const nameLabel = document.createElement('div');
-            nameLabel.className = 'segment-label';
-            nameLabel.textContent = player.username;
-            nameLabel.style.transform = `rotate(${segmentAngle / 2}deg)`;
-            segment.appendChild(nameLabel);
-            
-            this.wheel.appendChild(segment);
-        });
-
-        // Fill remaining segments if needed
-        for (let i = this.players.length; i < 8; i++) {
-            const segment = document.createElement('div');
-            segment.className = 'wheel-segment empty';
-            segment.style.transform = `rotate(${i * segmentAngle}deg)`;
-            this.wheel.appendChild(segment);
-        }
-
-        // Add center dot if it doesn't exist
-        let center = this.wheelContainer.querySelector('.wheel-center');
-        if (!center) {
-            center = document.createElement('div');
-            center.className = 'wheel-center';
-            this.wheelContainer.appendChild(center);
-        }
-
-        // Add arrow if it doesn't exist
-        let arrow = this.wheelContainer.querySelector('.wheel-arrow');
-        if (!arrow) {
-            arrow = document.createElement('div');
-            arrow.className = 'wheel-arrow';
-            this.wheelContainer.appendChild(arrow);
+        if (isBreak) {
+            this.timerElement.className = 'break-timer';
+            this.timerElement.textContent = `Next game starts in: ${time}s`;
+        } else {
+            this.timerElement.className = '';
+            const minutes = Math.floor(time / 60);
+            const seconds = time % 60;
+            this.timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
         }
     }
 
-    spinWheel(winnerIndex) {
-        if (!this.wheel) return;
+    getGridSize(playerCount) {
+        if (playerCount <= 3) return 2;  // 2x2 grid for 1-3 players
+        if (playerCount <= 8) return 3;  // 3x3 grid for 4-8 players
+        return 4;  // 4x4 grid for 9+ players
+    }
+
+    updateGrid() {
+        const currentSize = this.getGridSize(this.players.length);
+        const gridContainer = this.gridContainer;
         
-        const segmentCount = Math.max(8, this.players.length);
-        const segmentAngle = 360 / segmentCount;
+        // Clear existing grid
+        while (gridContainer.firstChild) {
+            gridContainer.removeChild(gridContainer.firstChild);
+        }
         
-        // Calculate the target rotation
-        // Add 5 full rotations plus the angle to the winner
-        const targetRotation = this.currentRotation + (360 * 5) + (segmentAngle * winnerIndex);
+        // Update grid size class
+        gridContainer.className = `grid-container grid-${currentSize}`;
         
-        // Apply the rotation with animation
-        this.wheel.style.transform = `rotate(${targetRotation}deg)`;
-        this.currentRotation = targetRotation;
+        // Create empty cells
+        const totalCells = currentSize * currentSize;
+        for (let i = 0; i < totalCells; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            cell.dataset.index = i;
+            gridContainer.appendChild(cell);
+        }
+        
+        // Place players in random cells
+        const emptyCells = Array.from(gridContainer.querySelectorAll('.grid-cell'));
+        this.players.forEach((player, index) => {
+            if (emptyCells.length > 0) {
+                const randomIndex = Math.floor(Math.random() * emptyCells.length);
+                const cell = emptyCells.splice(randomIndex, 1)[0];
+                cell.textContent = player.emoji;
+                cell.className = 'grid-cell player-cell';
+                cell.style.backgroundColor = `var(--color-${(index % 8) + 1})`;
+            }
+        });
+    }
+
+    getRandomEmoji() {
+        const availableEmojis = this.emojiPool.filter(emoji => !this.usedEmojis.has(emoji));
+        if (availableEmojis.length === 0) return '🎲'; // Fallback emoji
+        const randomIndex = Math.floor(Math.random() * availableEmojis.length);
+        const selectedEmoji = availableEmojis[randomIndex];
+        this.usedEmojis.add(selectedEmoji);
+        return selectedEmoji;
+    }
+
+    getRandomEmptyCell() {
+        const emptyCells = Array.from(this.gridContainer.querySelectorAll('.grid-cell:not(.player-cell)'));
+        if (emptyCells.length === 0) return null;
+        const randomIndex = Math.floor(Math.random() * emptyCells.length);
+        return emptyCells[randomIndex];
+    }
+
+    updatePlayersList() {
+        if (!this.playersListElement) return;
+        
+        this.playersListElement.innerHTML = '';
+        
+        this.players.forEach((player) => {
+            const li = document.createElement('div');
+            li.className = 'player-item';
+            li.innerHTML = `
+                <span class="player-name">${player.username}</span>
+                <span class="emoji">${player.emoji || '🎲'}</span>
+            `;
+            this.playersListElement.appendChild(li);
+        });
+    }
+
+    announceWinner(winner) {
+        // Show winner popup
+        this.showWinnerPopup(winner);
+
+        // Remove non-winner cells with animation
+        const playerCells = this.gridContainer.querySelectorAll('.player-cell');
+        playerCells.forEach(cell => {
+            const playerEmoji = cell.textContent;
+            const isWinner = winner.emoji === playerEmoji;
+            if (!isWinner) {
+                cell.classList.add('fade-out');
+            } else {
+                cell.classList.add('winner');
+            }
+        });
+
+        if (this.statusElement) {
+            this.statusElement.innerHTML = `
+                <div class="alert alert-success">
+                    Winner: ${winner.username} ${winner.emoji}<br>
+                    Prize: ₹${winner.prize}
+                </div>
+            `;
+        }
     }
 
     setupSocketListeners() {
@@ -108,69 +200,69 @@ class WheelGame {
             }
         });
 
-        this.socket.on('connect_error', (error) => {
-            console.error('Connection Error:', error);
-            if (this.statusElement) {
-                this.statusElement.textContent = 'Error connecting to server. Retrying...';
-            }
-            if (this.joinButton) {
-                this.joinButton.disabled = true;
-            }
-        });
-
-        this.socket.on('disconnect', (reason) => {
-            console.log('Disconnected:', reason);
-            if (this.statusElement) {
-                this.statusElement.textContent = 'Disconnected from server. Reconnecting...';
-            }
-            if (this.joinButton) {
-                this.joinButton.disabled = true;
-            }
-        });
-
         this.socket.on('timer', (data) => {
-            if (this.timerElement && data.time !== undefined) {
+            if (!this.timerElement) return;
+            
+            const isBreak = data.isBreak || false;
+            if (isBreak) {
+                this.timerElement.className = 'break-timer';
+                this.timerElement.textContent = `Next game starts in: ${data.time}s`;
+            } else {
+                this.timerElement.className = '';
                 const minutes = Math.floor(data.time / 60);
                 const seconds = data.time % 60;
                 this.timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                
-                // When timer reaches 0, spin the wheel
-                if (data.time === 0) {
-                    const winnerIndex = Math.floor(Math.random() * this.players.length);
-                    this.spinWheel(winnerIndex);
-                }
             }
         });
 
         this.socket.on('game_status', (data) => {
             console.log('Game status update:', data);
+            
+            // Update break time status
+            this.isBreakTime = data.isBreak || false;
+            
             if (data.players && Array.isArray(data.players)) {
+                const oldSize = this.getGridSize(this.players.length);
+                const newSize = this.getGridSize(data.players.length);
+                
+                if (newSize > oldSize) {
+                    this.showExpansionNotice();
+                }
+                
                 this.players = data.players;
+                this.updateGrid();
                 this.updatePlayersList();
-                this.updateWheel();
             }
             
-            if (data.timer && this.timerElement) {
-                const minutes = Math.floor(data.timer / 60);
-                const seconds = data.timer % 60;
-                this.timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-            }
-            
+            // Update join button state
             if (this.joinButton) {
-                this.joinButton.disabled = data.status !== 'joining';
+                this.joinButton.disabled = data.status !== 'joining' || this.isBreakTime;
             }
             
+            // Update status message
             if (this.statusElement) {
-                this.statusElement.textContent = data.status === 'joining' ? 'Waiting for players...' : 'Game in progress';
+                if (this.isBreakTime) {
+                    this.statusElement.textContent = 'Break time - Next game starting soon';
+                } else {
+                    this.statusElement.textContent = data.status === 'joining' ? 'Waiting for players...' : 'Game in progress';
+                }
             }
         });
 
         this.socket.on('player_joined', (data) => {
             console.log('Player joined:', data);
             if (data.players && Array.isArray(data.players)) {
+                // Clear existing cells before updating
+                const existingCells = this.gridContainer.querySelectorAll('.player-cell');
+                existingCells.forEach(cell => {
+                    cell.className = 'grid-cell';
+                    cell.textContent = '';
+                    cell.style.backgroundColor = '';
+                });
+                
                 this.players = data.players;
+                this.updateGrid();
                 this.updatePlayersList();
-                this.updateWheel();
                 
                 if (this.statusElement) {
                     this.statusElement.textContent = `Players in game: ${data.player_count}`;
@@ -178,30 +270,15 @@ class WheelGame {
             }
         });
 
-        this.socket.on('join_game_response', (response) => {
-            console.log('Join game response:', response);
-            if (this.joinButton) {
-                this.joinButton.disabled = !response.success;
-            }
-            
-            if (!response.success) {
-                alert(response.message || 'Failed to join game');
-            }
-            
-            if (this.statusElement) {
-                this.statusElement.textContent = response.message;
-            }
-        });
-
         this.socket.on('game_end', (data) => {
             console.log('Game ended:', data);
-            if (this.statusElement) {
-                if (data.winner) {
-                    this.statusElement.textContent = `Game Over! Winner: ${data.winner}`;
-                } else {
-                    this.statusElement.textContent = 'Game cancelled - No players joined';
+            if (data.winner) {
+                const winner = this.players.find(p => p.username === data.winner);
+                if (winner) {
+                    this.announceWinner(winner);
                 }
             }
+            
             if (this.joinButton) {
                 this.joinButton.disabled = true;
             }
@@ -219,25 +296,6 @@ class WheelGame {
         
         console.log('Attempting to join game...');
         this.socket.emit('join_game');
-    }
-
-    updatePlayersList() {
-        console.log('Updating players list:', this.players);
-        if (!this.playersListElement) {
-            console.error('Players list element not found');
-            return;
-        }
-        
-        // Clear existing list
-        this.playersListElement.innerHTML = '';
-        
-        // Add each player
-        this.players.forEach((player, index) => {
-            const li = document.createElement('li');
-            li.className = 'list-group-item';
-            li.textContent = player.username || 'Unknown Player';
-            this.playersListElement.appendChild(li);
-        });
     }
 }
 

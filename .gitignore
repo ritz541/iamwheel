@@ -43,3 +43,6 @@ app.db
 # OS
 .DS_Store
 Thumbs.db
+
+test.py
+mongotest.py

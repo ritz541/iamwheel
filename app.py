@@ -137,105 +137,8 @@ class GameState:
             'status': 'joining',
             'players': [],
             'timer': 300,
-            'game_id': str(uuid.uuid4()),
-            'created_at': datetime.now(timezone.utc)
-        }
-        
-        # Always store in MongoDB for persistence
-        db.game_history.insert_one(game_data)
-        
-        if REDIS_AVAILABLE:
-            try:
-                # Store temporary game state in Redis with 5-minute expiry
-                redis_game.setex(self.game_key, 300, json_dumps(game_data))
-            except redis.RedisError as e:
-                app.logger.error(f"Redis game state storage failed: {str(e)}")
-    
-    def get_game_state(self):
-        if REDIS_AVAILABLE:
-            try:
-                state = redis_game.get(self.game_key)
-                if state:
-                    return json.loads(state)
-            except redis.RedisError as e:
-                app.logger.error(f"Redis game state retrieval failed: {str(e)}")
-        
-        # Fallback to MongoDB
-        state = db.game_history.find_one({}, sort=[('created_at', -1)])
-        if state:
-            # Convert ObjectId to string for JSON serialization
-            state['_id'] = str(state['_id'])
-        return state or {'status': 'error'}
-
-    def update_game_state(self, updates):
-        # Update MongoDB first for persistence
-        current = self.get_game_state()
-        current.update(updates)
-        
-        # Remove _id before updating MongoDB
-        if '_id' in current:
-            del current['_id']
-            
-        db.game_history.update_one(
-            {'game_id': current['game_id']},
-            {'$set': updates}
-        )
-        
-        if REDIS_AVAILABLE:
-            try:
-                redis_game.setex(self.game_key, 300, json_dumps(current))
-            except redis.RedisError as e:
-                app.logger.error(f"Redis game state update failed: {str(e)}")
-
-# Socket.IO setup with Redis if available
-if REDIS_AVAILABLE:
-    socketio = SocketIO(
-        app,
-        message_queue='redis://localhost:6379/3',
-        cors_allowed_origins="*",
-        logger=True,
-        engineio_logger=True
-    )
-else:
-    socketio = SocketIO(app, cors_allowed_origins="*")
-
-# Rate limiting decorator with fallback
-def rate_limit(limit=10, window=60):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if not REDIS_AVAILABLE:
-                return f(*args, **kwargs)  # Skip rate limiting if Redis is down
-                
-            if current_user.is_authenticated:
-                key = f"rate_limit:{current_user.id}:{request.endpoint}"
-                try:
-                    current = redis_rate_limit.get(key)
-                    if current is None:
-                        redis_rate_limit.setex(key, window, 1)
-                    elif int(current) >= limit:
-                        return jsonify({'error': 'Rate limit exceeded'}), 429
-                    else:
-                        redis_rate_limit.incr(key)
-                except redis.RedisError as e:
-                    app.logger.error(f"Rate limiting failed: {str(e)}")
-                    return f(*args, **kwargs)  # Continue without rate limiting
-                
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
-# Game state management with fallback to MongoDB
-class GameState:
-    def __init__(self):
-        self.game_key = "current_game"
-        self.reset_game()
-    
-    def reset_game(self):
-        game_data = {
-            'status': 'joining',
-            'players': [],
-            'timer': 300,
+            'break_timer': 15,  # 15 second break timer
+            'is_break': False,
             'game_id': str(uuid.uuid4()),
             'created_at': datetime.now(timezone.utc)
         }
@@ -355,10 +258,27 @@ def update_game_timer():
             with app.app_context():
                 game_data = game_state.get_game_state()
                 
-                if game_data.get('status') == 'joining':
+                if game_data.get('is_break', False):
+                    # Handle break timer
+                    break_timer = game_data.get('break_timer', 15)
+                    if break_timer > 0:
+                        game_state.update_game_state({'break_timer': break_timer - 1})
+                        socketio.emit('timer', {'time': break_timer - 1, 'isBreak': True})
+                        socketio.sleep(1)
+                    else:
+                        # Break time over, start new game
+                        game_state.reset_game()
+                        new_state = game_state.get_game_state()
+                        socketio.emit('game_status', {
+                            'status': new_state['status'],
+                            'players': new_state['players'],
+                            'timer': new_state['timer'],
+                            'isBreak': False
+                        })
+                elif game_data.get('status') == 'joining':
                     if game_data.get('timer', 0) > 0:
                         game_state.update_game_state({'timer': game_data['timer'] - 1})
-                        socketio.emit('timer', {'time': game_data['timer'] - 1})
+                        socketio.emit('timer', {'time': game_data['timer'] - 1, 'isBreak': False})
                         
                         if game_data['timer'] <= 1:
                             players = game_data.get('players', [])
@@ -392,19 +312,29 @@ def update_game_timer():
                                     'winner': winner['username'],
                                     'prize': winner_prize
                                 })
+                                
+                                # Start break time
+                                game_state.update_game_state({
+                                    'status': 'break',
+                                    'is_break': True,
+                                    'break_timer': 15
+                                })
+                                socketio.emit('game_status', {
+                                    'status': 'break',
+                                    'players': players,
+                                    'timer': 15,
+                                    'isBreak': True
+                                })
                             else:
                                 socketio.emit('game_end', {'winner': None})
-                            
-                            # Reset game state
-                            game_state.reset_game()
-                            
-                            # Notify all clients of new game state
-                            new_state = game_state.get_game_state()
-                            socketio.emit('game_status', {
-                                'status': new_state['status'],
-                                'players': new_state['players'],
-                                'timer': new_state['timer']
-                            })
+                                game_state.reset_game()
+                                new_state = game_state.get_game_state()
+                                socketio.emit('game_status', {
+                                    'status': new_state['status'],
+                                    'players': new_state['players'],
+                                    'timer': new_state['timer'],
+                                    'isBreak': False
+                                })
             
             socketio.sleep(1)
         except Exception as e:
@@ -425,7 +355,8 @@ def handle_connect():
     emit('game_status', {
         'status': game_data['status'],
         'players': game_data['players'],
-        'timer': game_data['timer']
+        'timer': game_data['timer'],
+        'isBreak': game_data.get('is_break', False)
     })
 
 @socketio.on('disconnect')
@@ -470,7 +401,8 @@ def handle_join_game():
     socketio.emit('game_status', {
         'status': updated_game_data['status'],
         'players': updated_game_data['players'],
-        'timer': updated_game_data['timer']
+        'timer': updated_game_data['timer'],
+        'isBreak': updated_game_data.get('is_break', False)
     })
 
     socketio.emit('player_joined', {
@@ -722,46 +654,117 @@ def admin():
 @login_required
 @admin_required
 def handle_transaction(action, transaction_id):
-    transaction = db.transactions.find_one({'transaction_id': transaction_id})
-    if not transaction:
-        return jsonify({'success': False, 'message': 'Transaction not found'})
-    
-    if transaction['status'] != 'pending':
-        return jsonify({'success': False, 'message': 'Transaction is not pending'})
-    
-    if action == 'approve':
-        # Update transaction status
-        db.transactions.update_one(
-            {'transaction_id': transaction_id},
-            {'$set': {'status': 'completed'}}
-        )
+    try:
+        app.logger.info(f"Processing transaction {transaction_id} with action {action}")
         
-        # Update user's wallet balance for deposits
-        if transaction['type'] == 'deposit':
-            db.users.update_one(
-                {'_id': transaction['user_id']},
-                {'$inc': {'wallet_balance': transaction['amount']}}
-            )
+        # Get transaction and ensure it exists
+        transaction = db.transactions.find_one({'transaction_id': transaction_id})
+        app.logger.info(f"Found transaction: {transaction}")
         
-        return jsonify({'success': True, 'message': 'Transaction approved'})
-    
-    elif action == 'reject':
-        # Update transaction status
-        db.transactions.update_one(
-            {'transaction_id': transaction_id},
-            {'$set': {'status': 'rejected'}}
-        )
+        if not transaction:
+            app.logger.error(f"Transaction {transaction_id} not found")
+            return jsonify({'success': False, 'message': 'Transaction not found'})
         
-        # Refund user's wallet balance for withdrawals
-        if transaction['type'] == 'withdrawal':
-            db.users.update_one(
-                {'_id': transaction['user_id']},
-                {'$inc': {'wallet_balance': transaction['amount']}}
-            )
+        if transaction['status'] != 'pending':
+            app.logger.error(f"Transaction {transaction_id} is not pending (status: {transaction['status']})")
+            return jsonify({'success': False, 'message': 'Transaction is not pending'})
+
+        # Get user data to verify
+        user = db.users.find_one({'_id': transaction['user_id']})
+        app.logger.info(f"Found user: {user}")
         
-        return jsonify({'success': True, 'message': 'Transaction rejected'})
-    
-    return jsonify({'success': False, 'message': 'Invalid action'})
+        if not user:
+            app.logger.error(f"User {transaction['user_id']} not found")
+            return jsonify({'success': False, 'message': 'User not found'})
+        
+        if action == 'approve':
+            app.logger.info(f"Approving {transaction['type']} transaction")
+            
+            # For withdrawals, money is already deducted during request
+            if transaction['type'] == 'withdrawal':
+                try:
+                    result = db.transactions.update_one(
+                        {'transaction_id': transaction_id},
+                        {'$set': {
+                            'status': 'completed',
+                            'updated_at': datetime.now(timezone.utc),
+                            'approved_by': str(current_user.id)
+                        }}
+                    )
+                    app.logger.info(f"Withdrawal approval result: {result.modified_count} documents modified")
+                except Exception as e:
+                    app.logger.error(f"Error approving withdrawal: {str(e)}")
+                    raise
+                    
+            # For deposits, add money to wallet
+            elif transaction['type'] == 'deposit':
+                try:
+                    result = db.users.update_one(
+                        {'_id': transaction['user_id']},
+                        {'$inc': {'wallet_balance': transaction['amount']}}
+                    )
+                    app.logger.info(f"Deposit balance update result: {result.modified_count} documents modified")
+                    
+                    if result.modified_count == 0:
+                        app.logger.error("Failed to update user balance")
+                        return jsonify({'success': False, 'message': 'Failed to update user balance'})
+                    
+                    result = db.transactions.update_one(
+                        {'transaction_id': transaction_id},
+                        {'$set': {
+                            'status': 'completed',
+                            'updated_at': datetime.now(timezone.utc),
+                            'approved_by': str(current_user.id)
+                        }}
+                    )
+                    app.logger.info(f"Deposit approval result: {result.modified_count} documents modified")
+                except Exception as e:
+                    app.logger.error(f"Error approving deposit: {str(e)}")
+                    raise
+            
+            return jsonify({'success': True, 'message': 'Transaction approved'})
+        
+        elif action == 'reject':
+            app.logger.info(f"Rejecting {transaction['type']} transaction")
+            
+            # For withdrawals, refund the money since it was deducted during request
+            if transaction['type'] == 'withdrawal':
+                try:
+                    result = db.users.update_one(
+                        {'_id': transaction['user_id']},
+                        {'$inc': {'wallet_balance': transaction['amount']}}
+                    )
+                    app.logger.info(f"Withdrawal refund result: {result.modified_count} documents modified")
+                    
+                    if result.modified_count == 0:
+                        app.logger.error("Failed to refund user balance")
+                        return jsonify({'success': False, 'message': 'Failed to refund user balance'})
+                except Exception as e:
+                    app.logger.error(f"Error refunding withdrawal: {str(e)}")
+                    raise
+            
+            try:
+                result = db.transactions.update_one(
+                    {'transaction_id': transaction_id},
+                    {'$set': {
+                        'status': 'rejected',
+                        'updated_at': datetime.now(timezone.utc),
+                        'rejected_by': str(current_user.id)
+                    }}
+                )
+                app.logger.info(f"Rejection update result: {result.modified_count} documents modified")
+            except Exception as e:
+                app.logger.error(f"Error updating transaction status: {str(e)}")
+                raise
+            
+            return jsonify({'success': True, 'message': 'Transaction rejected'})
+        
+        app.logger.error(f"Invalid action: {action}")
+        return jsonify({'success': False, 'message': 'Invalid action'})
+        
+    except Exception as e:
+        app.logger.error(f"Transaction handling error: {str(e)}")
+        return jsonify({'success': False, 'message': f'An error occurred: {str(e)}'})
 
 @app.route('/admin/user/<action>/<user_id>', methods=['POST'])
 @login_required
