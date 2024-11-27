@@ -3,54 +3,63 @@
     width: 400px;
     height: 400px;
     margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .wheel {
+    position: absolute;
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    position: relative;
     transition: transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99);
     transform: rotate(0deg);
+}
+
+.wheel-segment {
+    position: absolute;
+    width: 50%;
+    height: 50%;
+    transform-origin: 100% 100%;
+    background: linear-gradient(45deg, #ff6b6b, #f53b57);
+    clip-path: polygon(100% 100%, 0 100%, 100% 0);
+}
+
+.wheel-segment.empty {
+    background: linear-gradient(45deg, #a8a8a8, #666666);
+    opacity: 0.5;
+}
+
+.segment-label {
+    position: absolute;
+    left: 50%;
+    top: 30%;
+    transform-origin: 0 0;
+    color: white;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+    font-size: 14px;
 }
 
 .wheel-center {
     position: absolute;
     width: 50px;
     height: 50px;
-    background: #fff;
+    background: #2f3542;
     border-radius: 50%;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
     z-index: 2;
-}
-
-.wheel-player {
-    position: absolute;
-    width: 50%;
-    height: 50%;
-    transform-origin: 100% 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    font-weight: bold;
-    color: white;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
 }
 
 .wheel-arrow {
     position: absolute;
-    top: 50%;
-    right: -30px;
-    transform: translateY(-50%);
-    width: 0;
-    height: 0;
-    border-top: 15px solid transparent;
-    border-bottom: 15px solid transparent;
-    border-left: 30px solid #ff0000;
-    z-index: 2;
+    top: -30px;
+    width: 40px;
+    height: 40px;
+    background: #ff4757;
+    clip-path: polygon(50% 100%, 0 0, 100% 0);
+    z-index: 1;
 }
 
 .game-status {
@@ -76,3 +85,13 @@
     50% { box-shadow: 0 0 20px #ffd700; }
     100% { box-shadow: 0 0 5px #ffd700; }
 }
+
+/* Color variations for segments */
+.wheel-segment:nth-child(8n + 1) { background: linear-gradient(45deg, #ff6b6b, #f53b57); }
+.wheel-segment:nth-child(8n + 2) { background: linear-gradient(45deg, #48dbfb, #0abde3); }
+.wheel-segment:nth-child(8n + 3) { background: linear-gradient(45deg, #1dd1a1, #10ac84); }
+.wheel-segment:nth-child(8n + 4) { background: linear-gradient(45deg, #ffd32a, #ffa502); }
+.wheel-segment:nth-child(8n + 5) { background: linear-gradient(45deg, #ff9ff3, #f368e0); }
+.wheel-segment:nth-child(8n + 6) { background: linear-gradient(45deg, #00d2d3, #01a3a4); }
+.wheel-segment:nth-child(8n + 7) { background: linear-gradient(45deg, #54a0ff, #2e86de); }
+.wheel-segment:nth-child(8n + 8) { background: linear-gradient(45deg, #5f27cd, #341f97); }

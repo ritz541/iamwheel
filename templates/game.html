@@ -21,28 +21,26 @@
                     
                     <!-- Wheel Container -->
                     <div class="wheel-container">
-                        <div class="wheel">
-                            <!-- Wheel segments will be added dynamically -->
-                        </div>
+                        <div class="wheel"></div>
                         <div class="wheel-center"></div>
                         <div class="wheel-arrow"></div>
                     </div>
 
                     <!-- Game Status -->
-                    <div class="game-status alert alert-info mt-3">
+                    <div class="game-status alert alert-info mt-3 text-center">
                         Waiting for players...
                     </div>
 
                     <!-- Players List -->
-                    <div class="player-list mt-3">
-                        <h4>Current Players</h4>
-                        <div class="players-list">
+                    <div class="mt-4">
+                        <h4 class="text-center mb-3">Current Players</h4>
+                        <ul class="players-list list-group">
                             <!-- Players will be added dynamically -->
-                        </div>
+                        </ul>
                     </div>
 
-                    <div class="text-center mt-3">
-                        <button id="joinGame" class="btn btn-primary" onclick="window.wheelGame.joinGame()">Join Game (₹10)</button>
+                    <div class="text-center mt-4">
+                        <button id="joinGame" class="btn btn-primary btn-lg">Join Game (₹10)</button>
                     </div>
                 </div>
             </div>
