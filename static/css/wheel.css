@@ -65,95 +65,141 @@
 .grid-container {
     display: grid;
     gap: 10px;
-    width: 100%;
-    height: 100%;
     padding: 10px;
+    margin: 0 auto;
+    max-width: 600px;
 }
 
 .grid-2 {
     grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: repeat(2, 1fr);
 }
 
 .grid-3 {
     grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
 }
 
 .grid-4 {
     grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(4, 1fr);
 }
 
 .grid-cell {
-    border-radius: 8px;
+    aspect-ratio: 1;
+    background: #f8f9fa;
+    border-radius: 10px;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-size: 24px; 
-    background-color: #f0f0f0; 
+    padding: 10px;
     transition: all 0.3s ease;
 }
 
-.grid-cell.player-cell {
-    animation: cellAppear 0.3s ease-in-out;
+.grid-cell.occupied {
+    background: #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
-.grid-cell.winner {
-    animation: winnerPulse 2s infinite;
+.player-emoji {
+    font-size: 2em;
+    margin-bottom: 5px;
 }
 
-.grid-cell.fade-out {
-    animation: fadeOut 0.5s ease-in-out forwards;
+.player-name {
+    font-size: 0.9em;
+    text-align: center;
+    word-break: break-word;
+}
+
+.game-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    transform: translateX(120%);
+    transition: transform 0.3s ease;
+    z-index: 1000;
+}
+
+.game-notification.show {
+    transform: translateX(0);
+}
+
+.game-notification.success {
+    border-left: 4px solid #28a745;
+}
+
+.game-notification.info {
+    border-left: 4px solid #17a2b8;
+}
+
+.winner-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    background: #fff;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+    text-align: center;
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.winner-popup.show {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+.winner-popup .title {
+    font-size: 1.5em;
+    margin-bottom: 15px;
+    color: #28a745;
+}
+
+.winner-popup .emoji {
+    font-size: 3em;
+    margin-bottom: 15px;
+}
+
+.winner-popup .player-name {
+    font-size: 1.2em;
+}
+
+.grid-expansion-notice {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 20px;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.grid-expansion-notice.show {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+.players-list {
+    margin-top: 20px;
 }
 
 .player-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 8px 15px;
-    margin-bottom: 5px;
-    border-radius: 5px;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 8px;
     background: #f8f9fa;
-    transition: all 0.3s ease;
-}
-
-.player-item .emoji {
-    font-size: 24px; 
-}
-
-@keyframes cellAppear {
-    from {
-        transform: scale(0);
-        opacity: 0;
-    }
-    to {
-        transform: scale(1);
-        opacity: 1;
-    }
-}
-
-@keyframes fadeOut {
-    from {
-        opacity: 1;
-        transform: scale(1);
-    }
-    to {
-        opacity: 0;
-        transform: scale(0.8);
-    }
-}
-
-@keyframes winnerPulse {
-    0% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.05);
-    }
-    100% {
-        transform: scale(1);
-    }
+    margin-bottom: 5px;
 }
 
 .wheel {
@@ -268,62 +314,10 @@
     --color-8: #E5FFB5;
 }
 
-/* Winner Popup */
-.winner-popup {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(255, 255, 255, 0.95);
-    padding: 20px 40px;
-    border-radius: 10px;
-    text-align: center;
-    z-index: 1000;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.winner-popup.show {
-    opacity: 1;
-}
-
-.winner-popup .title {
-    font-size: 24px;
-    margin-bottom: 10px;
-}
-
-.winner-popup .emoji {
-    font-size: 48px;
-    margin: 10px 0;
-}
-
-.winner-popup .player-name {
-    font-size: 20px;
-    margin-top: 10px;
-}
-
 /* Break Timer */
 .break-timer {
     color: #666;
     font-style: italic;
-}
-
-/* Grid Expansion Notification */
-.grid-expansion-notice {
-    position: absolute;
-    top: -30px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(255, 255, 255, 0.9);
-    padding: 5px 15px;
-    border-radius: 15px;
-    font-size: 14px;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.grid-expansion-notice.show {
-    opacity: 1;
 }
 
 /* Adjust grid sizes for different dimensions */

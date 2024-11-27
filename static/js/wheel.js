@@ -98,68 +98,142 @@ class WheelGame {
     }
 
     updateGrid() {
-        const currentSize = this.getGridSize(this.players.length);
-        const gridContainer = this.gridContainer;
+        const gridSize = this.getGridSize(this.players.length);
+        const currentClass = this.gridContainer.className.match(/grid-\d/)?.[0] || 'grid-2';
+        const newClass = `grid-${gridSize}`;
         
-        // Clear existing grid
-        while (gridContainer.firstChild) {
-            gridContainer.removeChild(gridContainer.firstChild);
+        if (currentClass !== newClass) {
+            this.gridContainer.classList.remove(currentClass);
+            this.gridContainer.classList.add(newClass);
         }
         
-        // Update grid size class
-        gridContainer.className = `grid-container grid-${currentSize}`;
+        // Clear existing cells
+        this.gridContainer.innerHTML = '';
         
-        // Create empty cells
-        const totalCells = currentSize * currentSize;
+        // Create grid cells
+        const totalCells = gridSize * gridSize;
+        const playerPositions = this.getRandomPositions(totalCells, this.players.length);
+        
         for (let i = 0; i < totalCells; i++) {
             const cell = document.createElement('div');
             cell.className = 'grid-cell';
-            cell.dataset.index = i;
-            gridContainer.appendChild(cell);
-        }
-        
-        // Place players in random cells
-        const emptyCells = Array.from(gridContainer.querySelectorAll('.grid-cell'));
-        this.players.forEach((player, index) => {
-            if (emptyCells.length > 0) {
-                const randomIndex = Math.floor(Math.random() * emptyCells.length);
-                const cell = emptyCells.splice(randomIndex, 1)[0];
-                cell.textContent = player.emoji;
-                cell.className = 'grid-cell player-cell';
-                cell.style.backgroundColor = `var(--color-${(index % 8) + 1})`;
+            
+            const playerIndex = playerPositions.indexOf(i);
+            if (playerIndex !== -1) {
+                const player = this.players[playerIndex];
+                cell.innerHTML = `
+                    <div class="player-emoji">${player.emoji}</div>
+                    <div class="player-name">${player.username}</div>
+                `;
+                cell.classList.add('occupied');
             }
-        });
-    }
-
-    getRandomEmoji() {
-        const availableEmojis = this.emojiPool.filter(emoji => !this.usedEmojis.has(emoji));
-        if (availableEmojis.length === 0) return '🎲'; // Fallback emoji
-        const randomIndex = Math.floor(Math.random() * availableEmojis.length);
-        const selectedEmoji = availableEmojis[randomIndex];
-        this.usedEmojis.add(selectedEmoji);
-        return selectedEmoji;
-    }
-
-    getRandomEmptyCell() {
-        const emptyCells = Array.from(this.gridContainer.querySelectorAll('.grid-cell:not(.player-cell)'));
-        if (emptyCells.length === 0) return null;
-        const randomIndex = Math.floor(Math.random() * emptyCells.length);
-        return emptyCells[randomIndex];
+            
+            this.gridContainer.appendChild(cell);
+        }
     }
 
     updatePlayersList() {
         if (!this.playersListElement) return;
         
-        this.playersListElement.innerHTML = '';
-        
-        this.players.forEach((player) => {
-            const li = document.createElement('div');
-            li.className = 'player-item';
-            li.innerHTML = `
+        this.playersListElement.innerHTML = this.players.map(player => `
+            <div class="player-item">
+                <span class="player-emoji">${player.emoji}</span>
                 <span class="player-name">${player.username}</span>
-                <span class="emoji">${player.emoji || '🎲'}</span>
-            `;
-            this.playersListElement.appendChild(li);
+            </div>
+        `).join('');
+    }
+
+    getRandomPositions(totalCells, playerCount) {
+        const positions = [];
+        for (let i = 0; i < playerCount; i++) {
+            let position;
+            do {
+                position = Math.floor(Math.random() * totalCells);
+            } while (positions.includes(position));
+            positions.push(position);
+        }
+        return positions;
+    }
+
+    showNotification(message, type = 'info', duration = 3000) {
+        const notification = document.createElement('div');
+        notification.className = `game-notification ${type}`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        // Trigger animation
+        setTimeout(() => notification.classList.add('show'), 10);
+        
+        // Remove after duration
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 300);
+        }, duration);
+    }
+
+    setupSocketListeners() {
+        this.socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        this.socket.on('game_status', (data) => {
+            this.players = data.players;
+            this.isBreakTime = data.isBreak;
+            this.updateTimer(data.timer, data.isBreak);
+            this.updateGrid();
+            this.updatePlayersList();
+        });
+
+        this.socket.on('player_joined', (data) => {
+            if (data.success) {
+                // Show notification
+                this.showNotification(`${data.new_player.emoji} ${data.message}`, 'success');
+                
+                // Update grid if needed
+                const oldPlayerCount = this.players.length;
+                this.players = data.players;
+                
+                if (this.getGridSize(oldPlayerCount) !== this.getGridSize(this.players.length)) {
+                    this.showExpansionNotice();
+                }
+                
+                this.updateGrid();
+                this.updatePlayersList();
+            }
+        });
+
+        this.socket.on('winner_selected', (data) => {
+            this.showWinnerPopup(data.winner);
+            this.isBreakTime = true;
+        });
+
+        this.socket.on('timer', (data) => {
+            if (!this.timerElement) return;
+            
+            const isBreak = data.isBreak || false;
+            if (isBreak) {
+                this.timerElement.className = 'break-timer';
+                this.timerElement.textContent = `Next game starts in: ${data.time}s`;
+            } else {
+                this.timerElement.className = '';
+                const minutes = Math.floor(data.time / 60);
+                const seconds = data.time % 60;
+                this.timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
+        });
+
+        this.socket.on('game_end', (data) => {
+            console.log('Game ended:', data);
+            if (data.winner) {
+                const winner = this.players.find(p => p.username === data.winner);
+                if (winner) {
+                    this.announceWinner(winner);
+                }
+            }
+            
+            if (this.joinButton) {
+                this.joinButton.disabled = true;
+            }
         });
     }
 
@@ -187,102 +261,6 @@ class WheelGame {
                 </div>
             `;
         }
-    }
-
-    setupSocketListeners() {
-        this.socket.on('connect', () => {
-            console.log('Connected to server');
-            if (this.statusElement) {
-                this.statusElement.textContent = 'Connected to server';
-            }
-            if (this.joinButton) {
-                this.joinButton.disabled = false;
-            }
-        });
-
-        this.socket.on('timer', (data) => {
-            if (!this.timerElement) return;
-            
-            const isBreak = data.isBreak || false;
-            if (isBreak) {
-                this.timerElement.className = 'break-timer';
-                this.timerElement.textContent = `Next game starts in: ${data.time}s`;
-            } else {
-                this.timerElement.className = '';
-                const minutes = Math.floor(data.time / 60);
-                const seconds = data.time % 60;
-                this.timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-            }
-        });
-
-        this.socket.on('game_status', (data) => {
-            console.log('Game status update:', data);
-            
-            // Update break time status
-            this.isBreakTime = data.isBreak || false;
-            
-            if (data.players && Array.isArray(data.players)) {
-                const oldSize = this.getGridSize(this.players.length);
-                const newSize = this.getGridSize(data.players.length);
-                
-                if (newSize > oldSize) {
-                    this.showExpansionNotice();
-                }
-                
-                this.players = data.players;
-                this.updateGrid();
-                this.updatePlayersList();
-            }
-            
-            // Update join button state
-            if (this.joinButton) {
-                this.joinButton.disabled = data.status !== 'joining' || this.isBreakTime;
-            }
-            
-            // Update status message
-            if (this.statusElement) {
-                if (this.isBreakTime) {
-                    this.statusElement.textContent = 'Break time - Next game starting soon';
-                } else {
-                    this.statusElement.textContent = data.status === 'joining' ? 'Waiting for players...' : 'Game in progress';
-                }
-            }
-        });
-
-        this.socket.on('player_joined', (data) => {
-            console.log('Player joined:', data);
-            if (data.players && Array.isArray(data.players)) {
-                // Clear existing cells before updating
-                const existingCells = this.gridContainer.querySelectorAll('.player-cell');
-                existingCells.forEach(cell => {
-                    cell.className = 'grid-cell';
-                    cell.textContent = '';
-                    cell.style.backgroundColor = '';
-                });
-                
-                this.players = data.players;
-                this.updateGrid();
-                this.updatePlayersList();
-                
-                if (this.statusElement) {
-                    this.statusElement.textContent = `Players in game: ${data.player_count}`;
-                }
-            }
-        });
-
-        this.socket.on('game_end', (data) => {
-            console.log('Game ended:', data);
-            if (data.winner) {
-                const winner = this.players.find(p => p.username === data.winner);
-                if (winner) {
-                    this.announceWinner(winner);
-                }
-            }
-            
-            if (this.joinButton) {
-                this.joinButton.disabled = true;
-            }
-        });
     }
 
     joinGame() {

@@ -381,11 +381,13 @@ def handle_join_game():
         emit('join_game_response', {'success': False, 'message': 'Insufficient balance'})
         return
 
-    # Add player to game
+    # Add player to game with emoji
     player_info = {
         'id': str(current_user.id),
-        'username': current_user.user_data['username']
+        'username': current_user.user_data['username'],
+        'emoji': current_user.user_data.get('emoji', '🎮')  # Default emoji if not found
     }
+    
     game_state.update_game_state({'players': game_data.get('players', []) + [player_info]})
 
     # Deduct entry fee
@@ -407,9 +409,10 @@ def handle_join_game():
 
     socketio.emit('player_joined', {
         'success': True,
-        'message': 'Successfully joined the game',
+        'message': f"{player_info['username']} joined the game!",
         'players': updated_game_data['players'],
-        'player_count': len(updated_game_data['players'])
+        'player_count': len(updated_game_data['players']),
+        'new_player': player_info
     })
 
     # Show wheel for first player
@@ -435,6 +438,7 @@ def register():
         username = request.form.get('username')
         phone = request.form.get('phone')
         password = request.form.get('password')
+        selected_emoji = request.form.get('selected_emoji', '🎮')  # Default emoji if none selected
         
         if db.users.find_one({'phone': phone}):
             flash('Phone number already registered')
@@ -452,7 +456,8 @@ def register():
             'is_admin': False,
             'is_blocked': False,
             'created_at': datetime.now(timezone.utc),
-            'last_active': datetime.now(timezone.utc)
+            'last_active': datetime.now(timezone.utc),
+            'emoji': selected_emoji
         }
         
         # First user is automatically an admin
