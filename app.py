@@ -22,6 +22,13 @@ from werkzeug.security import generate_password_hash
 # Load environment variables
 load_dotenv()
 
+# Access the variables
+SECRET_KEY = os.getenv('SECRET_KEY')
+REDIS_HOST = os.getenv('REDIS_HOST')
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))  # Default to 6379 if not set
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
+MONGO_URI = os.getenv('MONGO_URI')
+
 # Flask setup
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key')
@@ -31,9 +38,9 @@ app.config['SESSION_TYPE'] = 'filesystem'  # Fallback to filesystem if Redis is 
 try:
     # Main Redis client for sessions (no decode_responses for session data)
     redis_client = redis.Redis(
-        host='redis-14464.c301.ap-south-1-1.ec2.redns.redis-cloud.com', 
-        port=14464, 
-        password='6KPxcgIqJWTsDvfG5h2y1e0LJ12OuFp0',
+        host=REDIS_HOST, 
+        port=REDIS_PORT, 
+        password=REDIS_PASSWORD,
         db=0, 
         socket_timeout=2,
         retry_on_timeout=True
@@ -42,17 +49,17 @@ try:
     
     # Redis clients for other purposes (with decode_responses)
     redis_rate_limit = redis.Redis(
-        host='redis-14464.c301.ap-south-1-1.ec2.redns.redis-cloud.com', 
-        port=14464,
-        password='6KPxcgIqJWTsDvfG5h2y1e0LJ12OuFp0',
+        host=REDIS_HOST, 
+        port=REDIS_PORT,
+        password=REDIS_PASSWORD,
         # db=1, 
         decode_responses=True,
         retry_on_timeout=True
     )
     redis_game = redis.Redis(
-        host='redis-14464.c301.ap-south-1-1.ec2.redns.redis-cloud.com', 
-        port=14464,
-        password='6KPxcgIqJWTsDvfG5h2y1e0LJ12OuFp0', 
+        host=REDIS_HOST, 
+        port=REDIS_PORT,
+        password=REDIS_PASSWORD,
         # db=2, 
         decode_responses=True,
         retry_on_timeout=True
@@ -74,7 +81,7 @@ CORS(app)
 
 # MongoDB setup
 try:
-    client = MongoClient('mongodb+srv://pineguine:kh5hpAWVlKMfpHo6@iamwheel.2iutq.mongodb.net/?retryWrites=true&w=majority&appName=iamwheel')
+    client = MongoClient(MONGO_URI)
     db = client['wheel_game']
     # Test connection
     db.command('ping')

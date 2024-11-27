@@ -47,3 +47,4 @@ Thumbs.db
 test.py
 mongotest.py
 description.txt
+.env
