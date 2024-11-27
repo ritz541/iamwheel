@@ -31,8 +31,9 @@ app.config['SESSION_TYPE'] = 'filesystem'  # Fallback to filesystem if Redis is 
 try:
     # Main Redis client for sessions (no decode_responses for session data)
     redis_client = redis.Redis(
-        host='localhost', 
-        port=6379, 
+        host='redis-14464.c301.ap-south-1-1.ec2.redns.redis-cloud.com', 
+        port=14464, 
+        password='6KPxcgIqJWTsDvfG5h2y1e0LJ12OuFp0',
         db=0, 
         socket_timeout=2,
         retry_on_timeout=True
@@ -41,16 +42,18 @@ try:
     
     # Redis clients for other purposes (with decode_responses)
     redis_rate_limit = redis.Redis(
-        host='localhost', 
-        port=6379, 
-        db=1, 
+        host='redis-14464.c301.ap-south-1-1.ec2.redns.redis-cloud.com', 
+        port=14464,
+        password='6KPxcgIqJWTsDvfG5h2y1e0LJ12OuFp0',
+        # db=1, 
         decode_responses=True,
         retry_on_timeout=True
     )
     redis_game = redis.Redis(
-        host='localhost', 
-        port=6379, 
-        db=2, 
+        host='redis-14464.c301.ap-south-1-1.ec2.redns.redis-cloud.com', 
+        port=14464,
+        password='6KPxcgIqJWTsDvfG5h2y1e0LJ12OuFp0', 
+        # db=2, 
         decode_responses=True,
         retry_on_timeout=True
     )
@@ -71,7 +74,7 @@ CORS(app)
 
 # MongoDB setup
 try:
-    client = MongoClient('mongodb://localhost:27017/')
+    client = MongoClient('mongodb+srv://pineguine:kh5hpAWVlKMfpHo6@iamwheel.2iutq.mongodb.net/?retryWrites=true&w=majority&appName=iamwheel')
     db = client['wheel_game']
     # Test connection
     db.command('ping')
@@ -194,7 +197,7 @@ class GameState:
 if REDIS_AVAILABLE:
     socketio = SocketIO(
         app,
-        message_queue='redis://localhost:6379/3',
+        message_queue='redis://:6KPxcgIqJWTsDvfG5h2y1e0LJ12OuFp0@redis-14464.c301.ap-south-1-1.ec2.redns.redis-cloud.com:14464/0',
         cors_allowed_origins="*",
         logger=True,
         engineio_logger=True
@@ -805,7 +808,7 @@ def admin_required(f):
     return decorated_function
 
 # Admin routes
-@app.route('/admin')
+@app.route('/admin/')
 @login_required
 def admin():
     if not session.get('is_admin'):
