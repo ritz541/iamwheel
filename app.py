@@ -31,6 +31,8 @@ MONGO_URI = os.getenv('MONGO_URI')
 
 # Flask setup
 app = Flask(__name__)
+app.config['DEBUG'] = False
+app.config['ENV'] = 'production'
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key')
 app.config['SESSION_TYPE'] = 'filesystem'  # Fallback to filesystem if Redis is not available
 
