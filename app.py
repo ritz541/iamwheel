@@ -17,6 +17,7 @@ from functools import wraps
 from flask_session import Session
 from flask_cors import CORS
 import pickle
+from werkzeug.security import generate_password_hash
 
 # Load environment variables
 load_dotenv()
@@ -220,6 +221,40 @@ def handle_spin(data):
     result = random.randint(0, 36)
     emit('wheel_result', {'result': result}, broadcast=True)
 
+@socketio.on('timer')
+def handle_timer(data):
+    game_data = game_state.get_game_state()
+    current_time = data.get('time', 0)
+    
+    # Don't allow joining in last 10 seconds
+    if current_time <= 10:
+        game_state.update_game_state({'status': 'running'})
+    
+    if current_time <= 0 and game_data['status'] == 'running':
+        winner = select_winner()
+        if winner:
+            socketio.emit('winner_selected', {
+                'winner': {
+                    'username': winner['username'],
+                    'emoji': winner['emoji'],
+                    'prize': winner['prize'],  # Make sure prize is included
+                    'wallet_balance': winner['wallet_balance']
+                }
+            })
+            
+            # Reset game state after winner selection
+            game_state.update_game_state({
+                'status': 'joining',
+                'players': [],
+                'timer': 300,
+                'is_break': True
+            })
+            
+            # Start break timer
+            socketio.emit('break_timer', {'duration': 15})
+    
+    socketio.emit('timer', {'time': max(0, current_time)})
+
 # Example of rate-limited API endpoint
 @app.route('/api/place_bet', methods=['POST'])
 @login_required
@@ -228,6 +263,84 @@ def place_bet():
     # Bet processing logic here
     return jsonify({'success': True})
 
+@app.route('/api/user/games', methods=['GET'])
+@login_required
+def get_user_games():
+    try:
+        # Get user's game history
+        user = db.users.find_one({'_id': ObjectId(current_user.id)})
+        if not user or 'game_history' not in user:
+            return jsonify({
+                'games': [],
+                'total_games': 0,
+                'total_wins': 0,
+                'total_earnings': 0
+            })
+
+        # Get full game details for each game in user's history
+        game_ids = [g['game_id'] for g in user.get('game_history', [])]
+        games = list(db.games.find({'_id': {'$in': game_ids}}))
+        
+        # Format games for response
+        formatted_games = []
+        for game in games:
+            formatted_game = {
+                'id': str(game['_id']),
+                'timestamp': game['timestamp'].isoformat(),
+                'participant_count': game['participant_count'],
+                'prize_pool': game['prize_pool'],
+                'winner': {
+                    'id': str(game['winner']['id']),
+                    'username': game['winner']['username'],
+                    'emoji': game['winner']['emoji']
+                }
+            }
+            formatted_games.append(formatted_game)
+        
+        # Calculate statistics
+        game_history = user.get('game_history', [])
+        total_wins = sum(1 for g in game_history if g.get('won', False))
+        total_earnings = sum(g['prize_pool'] for g in game_history if g.get('won', False))
+        
+        return jsonify({
+            'games': formatted_games,
+            'total_games': len(formatted_games),
+            'total_wins': total_wins,
+            'total_earnings': total_earnings
+        })
+    
+    except Exception as e:
+        print(f"Error in get_user_games: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/games/recent', methods=['GET'])
+def get_recent_games():
+    try:
+        # Get 10 most recent games
+        recent_games = list(db.games.find().sort('timestamp', -1).limit(10))
+        
+        # Format games for response
+        formatted_games = []
+        for game in recent_games:
+            formatted_game = {
+                'id': str(game['_id']),
+                'timestamp': game['timestamp'].isoformat(),
+                'participant_count': game['participant_count'],
+                'prize_pool': game['prize_pool'],
+                'winner': {
+                    'id': str(game['winner']['id']),
+                    'username': game['winner']['username'],
+                    'emoji': game['winner']['emoji']
+                }
+            }
+            formatted_games.append(formatted_game)
+        
+        return jsonify({'games': formatted_games})
+    
+    except Exception as e:
+        print(f"Error in get_recent_games: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 class User(UserMixin):
     def __init__(self, user_id):
         self.id = user_id
@@ -235,12 +348,25 @@ class User(UserMixin):
 
     def _load_user_data(self):
         # Load user data directly from MongoDB
-        user_data = db.users.find_one({'_id': ObjectId(self.id)})
-        self.user_data = user_data if user_data else {}
+        user = db.users.find_one({'_id': ObjectId(self.id)})
+        if user:
+            self.user_data = user.get('user_data', {})
+            self.is_admin = user.get('is_admin', False)
+            self.is_blocked = user.get('is_blocked', False)
+            self.game_history = user.get('game_history', [])
+            self.created_at = user.get('created_at')
+            self.last_active = user.get('last_active')
+        else:
+            self.user_data = {}
+            self.is_admin = False
+            self.is_blocked = False
+            self.game_history = []
+            self.created_at = None
+            self.last_active = None
 
     @property
     def is_active(self):
-        return not self.user_data.get('is_blocked', False)
+        return not self.is_blocked
 
     @staticmethod
     def get(user_id):
@@ -293,7 +419,7 @@ def update_game_timer():
                                 # Update winner's wallet
                                 db.users.update_one(
                                     {'username': winner['username']},
-                                    {'$inc': {'wallet_balance': winner_prize}}
+                                    {'$inc': {'user_data.wallet_balance': winner_prize}}
                                 )
                                 
                                 # Record game in database
@@ -393,7 +519,7 @@ def handle_join_game():
     # Deduct entry fee
     db.users.update_one(
         {'_id': ObjectId(current_user.id)},
-        {'$inc': {'wallet_balance': -10}}
+        {'$inc': {'user_data.wallet_balance': -10}}
     )
 
     # Get updated game state
@@ -421,13 +547,74 @@ def handle_join_game():
 
     emit('join_game_response', {'success': True, 'message': 'Successfully joined the game'})
 
-# Socket.IO error handling
-@socketio.on_error_default
-def default_error_handler(e):
-    print(f'SocketIO Error: {str(e)}')
-    socketio.emit('error', {'message': 'An error occurred'})
+def select_winner():
+    game_data = game_state.get_game_state()
+    if not game_data.get('players'):
+        return None
+    
+    winner = random.choice(game_data['players'])
+    total_players = len(game_data['players'])
+    prize_money = total_players * 10  # Each player contributes 10
 
-# Routes
+    try:
+        # Store game details in games collection
+        game_record = {
+            'timestamp': datetime.utcnow(),
+            'participants': game_data['players'],
+            'participant_count': total_players,
+            'prize_pool': prize_money,
+            'winner': {
+                'id': winner['id'],
+                'username': winner['username'],
+                'emoji': winner['emoji']
+            },
+            'entry_fee': 10
+        }
+        result = db.games.insert_one(game_record)
+        game_id = result.inserted_id
+
+        # Add game reference to each participant's history
+        participant_ids = [ObjectId(p['id']) for p in game_data['players']]
+        
+        # Update all participants with game record
+        db.users.update_many(
+            {'_id': {'$in': participant_ids}},
+            {'$push': {
+                'game_history': {
+                    'game_id': game_id,
+                    'timestamp': game_record['timestamp'],
+                    'won': False,
+                    'prize_pool': prize_money
+                }
+            }}
+        )
+        
+        # Update winner's game history and wallet
+        winner_update = db.users.find_one_and_update(
+            {'_id': ObjectId(winner['id'])},
+            {
+                '$set': {
+                    'game_history.$[elem].won': True
+                },
+                '$inc': {
+                    'user_data.wallet_balance': prize_money
+                }
+            },
+            array_filters=[{'elem.game_id': game_id}],
+            return_document=True
+        )
+
+        # Add wallet balance to winner data for frontend
+        winner['wallet_balance'] = winner_update['user_data']['wallet_balance']
+        winner['prize'] = prize_money
+
+        print(f"Game completed - Winner: {winner['username']}, Prize: {prize_money}")
+        return winner
+
+    except Exception as e:
+        print(f"Error in select_winner: {str(e)}")
+        return None
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -438,37 +625,37 @@ def register():
         username = request.form.get('username')
         phone = request.form.get('phone')
         password = request.form.get('password')
-        selected_emoji = request.form.get('selected_emoji', '🎮')  # Default emoji if none selected
-        
+        selected_emoji = request.form.get('selected_emoji', '🎮')
+
         if db.users.find_one({'phone': phone}):
             flash('Phone number already registered')
             return redirect(url_for('register'))
-        
-        # Hash the password
-        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-        
-        # Create user document
-        user = {
+
+        # Create user with initial fields
+        user_data = {
             'username': username,
             'phone': phone,
-            'password': hashed_password,
-            'wallet_balance': 0,
+            'password': bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'),
+            'user_data': {
+                'username': username,
+                'wallet_balance': 0,
+                'emoji': selected_emoji
+            },
+            'game_history': [],
             'is_admin': False,
             'is_blocked': False,
-            'created_at': datetime.now(timezone.utc),
-            'last_active': datetime.now(timezone.utc),
-            'emoji': selected_emoji
+            'created_at': datetime.utcnow(),
+            'last_active': datetime.utcnow()
         }
         
         # First user is automatically an admin
         if db.users.count_documents({}) == 0:
-            user['is_admin'] = True
+            user_data['is_admin'] = True
         
-        result = db.users.insert_one(user)
-        
+        db.users.insert_one(user_data)
         flash('Registration successful! Please login.')
         return redirect(url_for('login'))
-    
+
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -477,28 +664,33 @@ def login():
         phone = request.form.get('phone')
         password = request.form.get('password')
         remember = bool(request.form.get('remember'))
-        
+ 
         user_data = db.users.find_one({'phone': phone})
-        if user_data and bcrypt.checkpw(password.encode('utf-8'), user_data['password']):
-            user = User(str(user_data['_id']))
-            login_user(user, remember=remember)
+        
+        if user_data and user_data.get('is_blocked', False):
+            flash('Your account has been blocked. Please contact admin.')
+            return redirect(url_for('login'))
             
+        if user_data and bcrypt.checkpw(password.encode('utf-8'), user_data['password'].encode('utf-8')):
+            user_obj = User(str(user_data['_id']))
+            login_user(user_obj, remember=remember)
+ 
             # Update last active time
             now = datetime.now(timezone.utc)
-            
-            # Update MongoDB
             db.users.update_one(
-                {'_id': user_data['_id']},
+                {'_id': ObjectId(user_data['_id'])},
                 {'$set': {'last_active': now}}
             )
+
+            # Set admin status in session
+            session['is_admin'] = user_obj.is_admin
             
-            # Store minimal session data
-            session['user_id'] = str(user_data['_id'])
-            session['last_active'] = now.isoformat()
-            
+            flash('Login successful!', 'success')
             return redirect(url_for('game'))
-        
+ 
         flash('Invalid phone number or password')
+        return redirect(url_for('login'))
+ 
     return render_template('login.html')
 
 @app.route('/logout')
@@ -595,7 +787,7 @@ def request_withdrawal():
     # Deduct amount from wallet immediately for withdrawal
     db.users.update_one(
         {'_id': ObjectId(current_user.id)},
-        {'$inc': {'wallet_balance': -amount}}
+        {'$inc': {'user_data.wallet_balance': -amount}}
     )
     
     db.transactions.insert_one(transaction)
@@ -606,8 +798,8 @@ def request_withdrawal():
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.user_data.get('is_admin', False):
-            flash('Access denied. Admin privileges required.')
+        if not session.get('is_admin'):
+            flash('Admin access required.')
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
@@ -616,7 +808,7 @@ def admin_required(f):
 @app.route('/admin')
 @login_required
 def admin():
-    if not current_user.user_data.get('is_admin', False):
+    if not session.get('is_admin'):
         return redirect(url_for('game'))
 
     # Get recent transactions
@@ -706,7 +898,7 @@ def handle_transaction(action, transaction_id):
                 try:
                     result = db.users.update_one(
                         {'_id': transaction['user_id']},
-                        {'$inc': {'wallet_balance': transaction['amount']}}
+                        {'$inc': {'user_data.wallet_balance': transaction['amount']}}
                     )
                     app.logger.info(f"Deposit balance update result: {result.modified_count} documents modified")
                     
@@ -737,7 +929,7 @@ def handle_transaction(action, transaction_id):
                 try:
                     result = db.users.update_one(
                         {'_id': transaction['user_id']},
-                        {'$inc': {'wallet_balance': transaction['amount']}}
+                        {'$inc': {'user_data.wallet_balance': transaction['amount']}}
                     )
                     app.logger.info(f"Withdrawal refund result: {result.modified_count} documents modified")
                     

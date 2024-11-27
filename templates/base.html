@@ -28,7 +28,7 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('wallet') }}">Wallet</a>
                         </li>
-                        {% if current_user.user_data.is_admin %}
+                        {% if current_user.is_admin %}
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('admin') }}">Admin Panel</a>
                         </li>
@@ -50,10 +50,10 @@
     </nav>
 
     <div class="container mt-4">
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-info">{{ message }}</div>
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
                 {% endfor %}
             {% endif %}
         {% endwith %}

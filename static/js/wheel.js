@@ -1,16 +1,9 @@
 class WheelGame {
     constructor() {
-        this.socket = io({
-            transports: ['websocket', 'polling'],
-            reconnection: true,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1000,
-            timeout: 5000
-        });
-        
+        this.socket = io();
         this.players = [];
-        this.usedEmojis = new Set();
         this.isBreakTime = false;
+        this.gameStatus = 'joining';
         this.setupElements();
         this.setupSocketListeners();
         this.initializeGrid();
@@ -46,7 +39,7 @@ class WheelGame {
         }
     }
 
-    showWinnerPopup(winner, duration = 5000) {
+    showWinnerPopup(winner) {
         // Remove existing popup if any
         const existingPopup = document.querySelector('.winner-popup');
         if (existingPopup) {
@@ -56,11 +49,18 @@ class WheelGame {
         // Create new popup
         const popup = document.createElement('div');
         popup.className = 'winner-popup';
+        
+        // Format prize money with commas
+        const formattedPrize = new Intl.NumberFormat('en-IN', {
+            style: 'currency',
+            currency: 'INR'
+        }).format(winner.prize);
+
         popup.innerHTML = `
             <div class="title">🎉 Winner! 🎉</div>
             <div class="emoji">${winner.emoji}</div>
             <div class="player-name">${winner.username}</div>
-            <div class="prize">Prize: ₹${winner.prize}</div>
+            <div class="prize">Prize: ${formattedPrize}</div>
         `;
         
         document.body.appendChild(popup);
@@ -75,7 +75,7 @@ class WheelGame {
         setTimeout(() => {
             popup.classList.remove('show');
             setTimeout(() => popup.remove(), 300);
-        }, duration);
+        }, 5000);
     }
 
     showExpansionNotice() {
@@ -183,19 +183,18 @@ class WheelGame {
         });
 
         this.socket.on('game_status', (data) => {
+            this.gameStatus = data.status;
             this.players = data.players;
             this.isBreakTime = data.isBreak;
             this.updateTimer(data.timer, data.isBreak);
             this.updateGrid();
             this.updatePlayersList();
+            this.updateJoinButton();
         });
 
         this.socket.on('player_joined', (data) => {
             if (data.success) {
-                // Show notification
                 this.showNotification(`${data.new_player.emoji} ${data.message}`, 'success');
-                
-                // Update grid if needed
                 const oldPlayerCount = this.players.length;
                 this.players = data.players;
                 
@@ -209,23 +208,38 @@ class WheelGame {
         });
 
         this.socket.on('winner_selected', (data) => {
-            this.showWinnerPopup(data.winner);
-            this.isBreakTime = true;
+            if (data.winner) {
+                this.showWinnerPopup(data.winner);
+                // Update wallet balance if current user is winner
+                const balanceElement = document.querySelector('.text-center.mb-3 p');
+                if (balanceElement && data.winner.wallet_balance !== undefined) {
+                    balanceElement.textContent = `Your Balance: ₹${data.winner.wallet_balance}`;
+                }
+                // Schedule page refresh after winner display
+                setTimeout(() => {
+                    window.location.reload();
+                }, 6000); // Refresh 1 second after winner popup disappears
+            }
         });
 
         this.socket.on('timer', (data) => {
-            if (!this.timerElement) return;
+            const timeLeft = data.time;
+            this.updateTimer(timeLeft);
             
-            const isBreak = data.isBreak || false;
-            if (isBreak) {
-                this.timerElement.className = 'break-timer';
-                this.timerElement.textContent = `Next game starts in: ${data.time}s`;
-            } else {
-                this.timerElement.className = '';
-                const minutes = Math.floor(data.time / 60);
-                const seconds = data.time % 60;
-                this.timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            // Disable join button in last 10 seconds
+            if (timeLeft <= 10 && this.joinButton) {
+                this.joinButton.disabled = true;
+                this.joinButton.title = 'Cannot join in last 10 seconds';
             }
+        });
+
+        this.socket.on('break_timer', (data) => {
+            this.isBreakTime = true;
+            this.updateJoinButton();
+            setTimeout(() => {
+                this.isBreakTime = false;
+                this.updateJoinButton();
+            }, data.duration * 1000);
         });
 
         this.socket.on('game_end', (data) => {
@@ -241,6 +255,21 @@ class WheelGame {
                 this.joinButton.disabled = true;
             }
         });
+    }
+
+    updateJoinButton() {
+        if (!this.joinButton) return;
+        
+        const canJoin = this.gameStatus === 'joining' && !this.isBreakTime;
+        this.joinButton.disabled = !canJoin;
+        
+        if (this.isBreakTime) {
+            this.joinButton.title = 'Game is in break';
+        } else if (this.gameStatus !== 'joining') {
+            this.joinButton.title = 'Game is in progress';
+        } else {
+            this.joinButton.title = 'Click to join the game';
+        }
     }
 
     announceWinner(winner) {
