@@ -20,17 +20,6 @@ class WheelGame {
     }
 
     createPopupElements() {
-        // Create winner popup
-        const popup = document.createElement('div');
-        popup.className = 'winner-popup';
-        popup.innerHTML = `
-            <div class="title">Winner!</div>
-            <div class="emoji"></div>
-            <div class="player-name"></div>
-        `;
-        document.body.appendChild(popup);
-        this.winnerPopup = popup;
-
         // Create grid expansion notice
         const notice = document.createElement('div');
         notice.className = 'grid-expansion-notice';
@@ -46,7 +35,7 @@ class WheelGame {
         this.playersListElement = document.querySelector('.players-list');
         
         // Initialize grid container
-        this.wheelContainer.innerHTML = '<div class="grid-container grid-2"></div>';
+        this.wheelContainer.innerHTML = '<div class="grid-container"></div>';
         this.gridContainer = this.wheelContainer.querySelector('.grid-container');
         
         if (this.joinButton) {
@@ -58,13 +47,34 @@ class WheelGame {
     }
 
     showWinnerPopup(winner, duration = 5000) {
-        const popup = this.winnerPopup;
-        popup.querySelector('.emoji').textContent = winner.emoji;
-        popup.querySelector('.player-name').textContent = winner.username;
+        // Remove existing popup if any
+        const existingPopup = document.querySelector('.winner-popup');
+        if (existingPopup) {
+            existingPopup.remove();
+        }
+
+        // Create new popup
+        const popup = document.createElement('div');
+        popup.className = 'winner-popup';
+        popup.innerHTML = `
+            <div class="title">🎉 Winner! 🎉</div>
+            <div class="emoji">${winner.emoji}</div>
+            <div class="player-name">${winner.username}</div>
+            <div class="prize">Prize: ₹${winner.prize}</div>
+        `;
+        
+        document.body.appendChild(popup);
+        
+        // Force reflow
+        popup.offsetHeight;
+        
+        // Show popup
         popup.classList.add('show');
         
+        // Remove popup after 5 seconds
         setTimeout(() => {
             popup.classList.remove('show');
+            setTimeout(() => popup.remove(), 300);
         }, duration);
     }
 
@@ -91,27 +101,16 @@ class WheelGame {
         }
     }
 
-    getGridSize(playerCount) {
-        if (playerCount <= 3) return 2;  // 2x2 grid for 1-3 players
-        if (playerCount <= 8) return 3;  // 3x3 grid for 4-8 players
-        return 4;  // 4x4 grid for 9+ players
-    }
-
     updateGrid() {
-        const gridSize = this.getGridSize(this.players.length);
-        const currentClass = this.gridContainer.className.match(/grid-\d/)?.[0] || 'grid-2';
-        const newClass = `grid-${gridSize}`;
-        
-        if (currentClass !== newClass) {
-            this.gridContainer.classList.remove(currentClass);
-            this.gridContainer.classList.add(newClass);
-        }
-        
         // Clear existing cells
         this.gridContainer.innerHTML = '';
         
-        // Create grid cells
-        const totalCells = gridSize * gridSize;
+        // Determine if we need expanded grid (more than 12 players)
+        const needsExpanded = this.players.length > 12;
+        this.gridContainer.classList.toggle('expanded', needsExpanded);
+        
+        // Calculate total cells based on grid type
+        const totalCells = needsExpanded ? 20 : 12; // 5x4 or 4x3
         const playerPositions = this.getRandomPositions(totalCells, this.players.length);
         
         for (let i = 0; i < totalCells; i++) {
@@ -121,11 +120,15 @@ class WheelGame {
             const playerIndex = playerPositions.indexOf(i);
             if (playerIndex !== -1) {
                 const player = this.players[playerIndex];
+                const colorIndex = playerIndex % 12; // We have 12 colors defined in CSS
+                
+                cell.classList.add('occupied');
+                cell.style.setProperty('--player-color', `var(--color-${colorIndex + 1})`);
+                
                 cell.innerHTML = `
                     <div class="player-emoji">${player.emoji}</div>
                     <div class="player-name">${player.username}</div>
                 `;
-                cell.classList.add('occupied');
             }
             
             this.gridContainer.appendChild(cell);
@@ -135,12 +138,15 @@ class WheelGame {
     updatePlayersList() {
         if (!this.playersListElement) return;
         
-        this.playersListElement.innerHTML = this.players.map(player => `
-            <div class="player-item">
-                <span class="player-emoji">${player.emoji}</span>
-                <span class="player-name">${player.username}</span>
-            </div>
-        `).join('');
+        this.playersListElement.innerHTML = this.players.map((player, index) => {
+            const colorIndex = index % 12;
+            return `
+                <div class="player-item" style="--player-color: var(--color-${colorIndex + 1})">
+                    <span class="player-emoji">${player.emoji}</span>
+                    <span class="player-name">${player.username}</span>
+                </div>
+            `;
+        }).join('');
     }
 
     getRandomPositions(totalCells, playerCount) {
@@ -193,7 +199,7 @@ class WheelGame {
                 const oldPlayerCount = this.players.length;
                 this.players = data.players;
                 
-                if (this.getGridSize(oldPlayerCount) !== this.getGridSize(this.players.length)) {
+                if (oldPlayerCount !== this.players.length) {
                     this.showExpansionNotice();
                 }
                 
@@ -244,7 +250,7 @@ class WheelGame {
         // Remove non-winner cells with animation
         const playerCells = this.gridContainer.querySelectorAll('.player-cell');
         playerCells.forEach(cell => {
-            const playerEmoji = cell.textContent;
+            const playerEmoji = cell.querySelector('.player-emoji').textContent;
             const isWinner = winner.emoji === playerEmoji;
             if (!isWinner) {
                 cell.classList.add('fade-out');
