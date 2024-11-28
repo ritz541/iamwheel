@@ -29,42 +29,51 @@ REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))  # Default to 6379 if not set
 REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
 MONGO_URI = os.getenv('MONGO_URI')
 
-# Flask setup
+# Flask setup with optimized settings
 app = Flask(__name__)
-app.config['DEBUG'] = False
-app.config['ENV'] = 'production'
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key')
-app.config['SESSION_TYPE'] = 'filesystem'  # Fallback to filesystem if Redis is not available
+app.config.update(
+    DEBUG=False,
+    ENV='production',
+    SECRET_KEY=os.getenv('SECRET_KEY', 'your-secret-key'),
+    SESSION_TYPE='filesystem',  # Fallback to filesystem if Redis is not available
+    SESSION_COOKIE_SECURE=True,  # Only send cookies over HTTPS
+    SESSION_COOKIE_HTTPONLY=True,  # Prevent JavaScript access to session cookie
+    SESSION_COOKIE_SAMESITE='Lax',  # CSRF protection
+    SESSION_REFRESH_EACH_REQUEST=False,  # Reduce session writes
+    PERMANENT_SESSION_LIFETIME=timedelta(days=1),  # Limit session lifetime
+    JSON_SORT_KEYS=False,  # Reduce CPU usage on JSON responses
+    MAX_CONTENT_LENGTH=5 * 1024 * 1024  # Limit upload size to 5MB
+)
 
-# Redis connection with error handling
+# Redis connection with optimized settings
 try:
-    # Main Redis client for sessions (no decode_responses for session data)
-    redis_client = redis.Redis(
-        host=REDIS_HOST, 
-        port=REDIS_PORT, 
+    redis_pool = redis.ConnectionPool(
+        host=REDIS_HOST,
+        port=REDIS_PORT,
         password=REDIS_PASSWORD,
-        db=0, 
+        max_connections=10,  # Limit max connections
+        socket_timeout=2,
+        socket_connect_timeout=2,
+        retry_on_timeout=True,
+        health_check_interval=30
+    )
+    
+    # Main Redis client for sessions
+    redis_client = redis.Redis(
+        connection_pool=redis_pool,
         socket_timeout=2,
         retry_on_timeout=True
     )
     redis_client.ping()  # Test connection
     
-    # Redis clients for other purposes (with decode_responses)
+    # Redis clients for specific purposes (using same connection pool)
     redis_rate_limit = redis.Redis(
-        host=REDIS_HOST, 
-        port=REDIS_PORT,
-        password=REDIS_PASSWORD,
-        # db=1, 
-        decode_responses=True,
-        retry_on_timeout=True
+        connection_pool=redis_pool,
+        decode_responses=True
     )
     redis_game = redis.Redis(
-        host=REDIS_HOST, 
-        port=REDIS_PORT,
-        password=REDIS_PASSWORD,
-        # db=2, 
-        decode_responses=True,
-        retry_on_timeout=True
+        connection_pool=redis_pool,
+        decode_responses=True
     )
     
     app.config['SESSION_TYPE'] = 'redis'
@@ -81,12 +90,20 @@ except (redis.ConnectionError, redis.RedisError) as e:
 # Enable CORS
 CORS(app)
 
-# MongoDB setup
+# MongoDB setup with optimized connection pooling
 try:
-    client = MongoClient(MONGO_URI)
+    mongo_uri = os.getenv('MONGO_URI')
+    client = MongoClient(
+        mongo_uri,
+        maxPoolSize=10,  # Limit max connections
+        minPoolSize=5,   # Maintain minimum connections
+        maxIdleTimeMS=45000,  # Close idle connections after 45s
+        serverSelectionTimeoutMS=5000,  # Fail fast if can't connect
+        connectTimeoutMS=2000,
+        retryWrites=True
+    )
     db = client['wheel_game']
-    # Test connection
-    db.command('ping')
+    db.command('ping')  # Test connection
 except Exception as e:
     app.logger.error(f"MongoDB connection failed: {str(e)}")
     raise
