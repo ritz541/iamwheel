@@ -64,5 +64,5 @@ This project is for educational purposes only. Use responsibly.
 
 ---
 
-**Developed by [Your Name]** 🚀
+**Developed by me and ai** 🚀
 
