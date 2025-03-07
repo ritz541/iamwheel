@@ -16,7 +16,6 @@ import redis
 from functools import wraps
 from flask_session import Session
 from flask_cors import CORS
-import pickle
 from werkzeug.security import generate_password_hash
 
 # Load environment variables
