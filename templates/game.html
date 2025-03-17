@@ -53,7 +53,6 @@
 <div class="game-history-section">
     <div class="history-tabs">
         <button class="tab-btn active" data-tab="my-games">My Games</button>
-        <button class="tab-btn" data-tab="recent-games">Recent Games</button>
     </div>
     
     <div class="tab-content active" id="my-games">
@@ -74,9 +73,7 @@
         <div class="games-list" id="my-games-list"></div>
     </div>
     
-    <div class="tab-content" id="recent-games">
-        <div class="games-list" id="recent-games-list"></div>
-    </div>
+
 </div>
 
 <style>
@@ -192,18 +189,28 @@
 function loadGameHistory() {
     // Load user's games
     fetch('/api/user/games')
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to fetch user games');
+            }
+            return response.json();
+        })
         .then(data => {
+            if (!data || typeof data !== 'object') {
+                throw new Error('Invalid response data');
+            }
             updateStats(data);
-            displayGames(data.games, 'my-games-list');
+            displayGames(data.games || [], 'my-games-list');
+        })
+        .catch(error => {
+            console.error('Error loading user games:', error);
+            document.getElementById('my-games-list').innerHTML = 
+                '<div class="text-center text-danger">Failed to load your games. Please try again later.</div>';
+            // Reset stats on error
+            updateStats({total_games: 0, total_wins: 0, total_earnings: 0});
         });
     
-    // Load recent games
-    fetch('/api/games/recent')
-        .then(response => response.json())
-        .then(data => {
-            displayGames(data.games, 'recent-games-list');
-        });
+
 }
 
 function updateStats(data) {
@@ -217,26 +224,50 @@ function updateStats(data) {
 }
 
 function displayGames(games, containerId) {
+    if (!games || !Array.isArray(games)) {
+        console.error('Invalid games data:', games);
+        document.getElementById(containerId).innerHTML = '<div class="text-center">Error loading games data</div>';
+        return;
+    }
+
     const container = document.getElementById(containerId);
-    container.innerHTML = games.map(game => `
-        <div class="game-item">
-            <div class="game-info">
-                <div class="game-time">${new Date(game.timestamp).toLocaleString()}</div>
-                <div class="game-details">
-                    <div class="winner-info">
-                        Winner: ${game.winner.emoji} ${game.winner.username}
+    if (games.length === 0) {
+        container.innerHTML = '<div class="text-center">No games found</div>';
+        return;
+    }
+
+    try {
+        container.innerHTML = games.map(game => {
+            // Ensure all required properties exist
+            if (!game.timestamp || !game.winner || !game.prize_pool) {
+                console.error('Invalid game data:', game);
+                return '';
+            }
+
+            return `
+                <div class="game-item">
+                    <div class="game-info">
+                        <div class="game-time">${new Date(game.timestamp).toLocaleString()}</div>
+                        <div class="game-details">
+                            <div class="winner-info">
+                                Winner: ${game.winner.emoji || '👤'} ${game.winner.username || 'Unknown'}
+                            </div>
+                            <div>Players: ${game.participant_count || 0}</div>
+                        </div>
                     </div>
-                    <div>Players: ${game.participant_count}</div>
+                    <div class="prize-pool">
+                        ${new Intl.NumberFormat('en-IN', {
+                            style: 'currency',
+                            currency: 'INR'
+                        }).format(game.prize_pool || 0)}
+                    </div>
                 </div>
-            </div>
-            <div class="prize-pool">
-                ${new Intl.NumberFormat('en-IN', {
-                    style: 'currency',
-                    currency: 'INR'
-                }).format(game.prize_pool)}
-            </div>
-        </div>
-    `).join('');
+            `;
+        }).filter(html => html).join('');
+    } catch (error) {
+        console.error('Error displaying games:', error);
+        container.innerHTML = '<div class="text-center">Error displaying games</div>';
+    }
 }
 
 // Tab handling
@@ -262,3 +293,4 @@ document.addEventListener('DOMContentLoaded', loadGameHistory);
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 <script src="{{ url_for('static', filename='js/wheel.js') }}"></script>
 {% endblock %}
+
