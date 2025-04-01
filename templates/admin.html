@@ -108,7 +108,7 @@
                     <tr>
                         <td>{{ user.username }}</td>
                         <td>{{ user.phone }}</td>
-                        <td>₹{{ user.wallet_balance }}</td>
+                        <td>₹{{ user.user_data.wallet_balance if user.user_data else 'N/A' }}</td>
                         <td>
                             <span class="badge {% if user.is_blocked %}bg-danger{% else %}bg-success{% endif %}">
                                 {{ 'Blocked' if user.is_blocked else 'Active' }}

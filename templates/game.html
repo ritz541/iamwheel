@@ -176,11 +176,14 @@ socket.on('game_state', (state) => {
 
 socket.on('game_result', (result) => {
     console.log('Game Result:', result);
-    showWinnerPopup(result.winner);
+    if (result && result.winner && result.prize_pool !== undefined) { 
+        showWinnerPopup(result);
+    } else {
+        console.error("Received incomplete game result:", result);
+    }
     setTimeout(() => {
-        loadGameHistory(); // Refresh history after a game ends
-        // Maybe reset parts of the UI here if needed
-    }, 1000); // Delay slightly
+        loadGameHistory();
+    }, 1000);
 });
 
 socket.on('notification', (data) => {
@@ -247,21 +250,32 @@ document.getElementById('joinGame').addEventListener('click', () => {
     socket.emit('join_game');
 });
 
-// Winner Popup (example structure - adapt as needed)
-function showWinnerPopup(winner) {
-    if (!winner) return;
+// Winner Popup (accepts the whole result object now)
+function showWinnerPopup(result) { 
+    if (!result || !result.winner) return;
+
+    const winner = result.winner;
+    const prizeAmount = result.prize_pool; 
+
+    // Format the prize amount as currency
+    const formattedPrize = new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR'
+    }).format(prizeAmount);
+
     const popup = document.createElement('div');
-    popup.className = 'winner-popup'; // Style this class
+    popup.className = 'winner-popup'; // Ensure this class is styled in wheel.css
     popup.innerHTML = `
-        <h2>Winner!</h2>
-        <div class="emoji" style="font-size: 5em;">${winner.emoji}</div>
-        <h3>${winner.username}</h3>
-        <p>Won the game!</p>
+        <h2 class="title">Winner!</h2> {# Use class for styling #}
+        <div class="emoji">${winner.emoji || '❓'}</div> {# Use class for styling #}
+        <h3 class="player-name">${winner.username || 'Unknown'}</h3> {# Use class for styling #}
+        <p class="prize">Won ${formattedPrize}!</p> {# Display formatted prize #}
         <button onclick="this.parentElement.remove()">Close</button>
     `;
     document.body.appendChild(popup);
-    // Add timeout to auto-remove or require click
-     setTimeout(() => popup.remove(), 5000); 
+    
+    // Auto-remove popup after a delay
+    setTimeout(() => popup.remove(), 6000); 
 }
 
 // Notification (example structure - adapt as needed)
