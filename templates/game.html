@@ -2,7 +2,6 @@
 
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wheel.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/game-history.css') }}">
 
 <div class="container">
     <h1 class="text-center mb-4">Wheel Game</h1>
@@ -76,114 +75,6 @@
 
 </div>
 
-<style>
-.game-history-section {
-    margin-top: 20px;
-    padding: 20px;
-    background: #fff;
-    border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
-
-.history-tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.tab-btn {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    background: #f0f0f0;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.tab-btn.active {
-    background: #28a745;
-    color: #fff;
-}
-
-.tab-content {
-    display: none;
-}
-
-.tab-content.active {
-    display: block;
-}
-
-.stats-summary {
-    display: flex;
-    justify-content: space-around;
-    margin-bottom: 20px;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 8px;
-}
-
-.stat-item {
-    text-align: center;
-}
-
-.stat-label {
-    display: block;
-    font-size: 0.9em;
-    color: #666;
-}
-
-.stat-value {
-    display: block;
-    font-size: 1.2em;
-    font-weight: bold;
-    color: #28a745;
-}
-
-.games-list {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.game-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 15px;
-    margin-bottom: 10px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    transition: transform 0.2s ease;
-}
-
-.game-item:hover {
-    transform: translateX(5px);
-}
-
-.game-info {
-    flex: 1;
-}
-
-.game-time {
-    font-size: 0.8em;
-    color: #666;
-}
-
-.game-details {
-    margin-top: 5px;
-}
-
-.winner-info {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.prize-pool {
-    font-weight: bold;
-    color: #28a745;
-}
-</style>
-
 <script>
 // Game history handling
 function loadGameHistory() {
@@ -249,44 +140,148 @@ function displayGames(games, containerId) {
                     <div class="game-info">
                         <div class="game-time">${new Date(game.timestamp).toLocaleString()}</div>
                         <div class="game-details">
-                            <div class="winner-info">
-                                Winner: ${game.winner.emoji || '👤'} ${game.winner.username || 'Unknown'}
-                            </div>
-                            <div>Players: ${game.participant_count || 0}</div>
+                            Winner: <span class="winner-info">${game.winner.emoji || '❓'} ${game.winner.username || 'Unknown'}</span> |
+                            Prize: <span class="prize-pool">₹${game.prize_pool}</span>
                         </div>
-                    </div>
-                    <div class="prize-pool">
-                        ${new Intl.NumberFormat('en-IN', {
-                            style: 'currency',
-                            currency: 'INR'
-                        }).format(game.prize_pool || 0)}
                     </div>
                 </div>
             `;
-        }).filter(html => html).join('');
+        }).join('');
     } catch (error) {
-        console.error('Error displaying games:', error);
-        container.innerHTML = '<div class="text-center">Error displaying games</div>';
+        console.error('Error rendering games:', error);
+        container.innerHTML = '<div class="text-center">Error rendering game history</div>';
     }
 }
 
-// Tab handling
-document.querySelectorAll('.tab-btn').forEach(button => {
-    button.addEventListener('click', () => {
-        // Update active tab button
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        button.classList.add('active');
-        
-        // Show selected tab content
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-        document.getElementById(button.dataset.tab).classList.add('active');
-    });
+// Initial load
+document.addEventListener('DOMContentLoaded', loadGameHistory);
+
+// WebSocket setup (similar to your existing game.js)
+const socket = io();
+
+socket.on('connect', () => {
+    console.log('Connected to WebSocket');
+    socket.emit('join_game_page'); // Notify server we are on the game page
 });
 
-// Load game history when page loads
-document.addEventListener('DOMContentLoaded', loadGameHistory);
-</script>
+socket.on('disconnect', () => {
+    console.log('Disconnected from WebSocket');
+});
 
+socket.on('game_state', (state) => {
+    updateGameState(state);
+    updatePlayersList(state.players);
+    updateCountdown(state.time_remaining);
+});
+
+socket.on('game_result', (result) => {
+    console.log('Game Result:', result);
+    showWinnerPopup(result.winner);
+    setTimeout(() => {
+        loadGameHistory(); // Refresh history after a game ends
+        // Maybe reset parts of the UI here if needed
+    }, 1000); // Delay slightly
+});
+
+socket.on('notification', (data) => {
+    showNotification(data.message, data.type || 'info');
+});
+
+// Wheel drawing logic (requires wheel.js or similar)
+const wheelCanvas = document.querySelector('.wheel'); // Assuming canvas
+// --- Need your wheel drawing functions here ---
+
+function updateGameState(state) {
+    const gameStatus = document.querySelector('.game-status');
+    if (state.status === 'waiting') {
+        gameStatus.textContent = 'Waiting for players...';
+        gameStatus.className = 'game-status alert alert-info mt-3 text-center';
+    } else if (state.status === 'running') {
+        gameStatus.textContent = 'Game in progress!';
+        gameStatus.className = 'game-status alert alert-warning mt-3 text-center';
+        // Start wheel animation if needed
+    } else if (state.status === 'finished') {
+        gameStatus.textContent = `Game finished! Winner: ${state.winner ? state.winner.username : 'Unknown'}`;
+        gameStatus.className = 'game-status alert alert-success mt-3 text-center';
+    }
+    
+    // Enable/disable join button
+    const joinButton = document.getElementById('joinGame');
+    if (state.status === 'waiting') {
+        joinButton.disabled = false;
+        joinButton.textContent = 'Join Game (₹10)';
+    } else {
+        joinButton.disabled = true;
+        joinButton.textContent = 'Game in Progress';
+    }
+}
+
+function updatePlayersList(players) {
+    const playersList = document.querySelector('.players-list');
+    playersList.innerHTML = ''; // Clear previous list
+    if (Object.keys(players).length === 0) {
+        playersList.innerHTML = '<li class="list-group-item">No players yet</li>';
+    } else {
+        for (const id in players) {
+            const player = players[id];
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.innerHTML = `
+                <span>${player.emoji} ${player.username}</span>
+                ${player.is_turn ? '<span class="badge bg-primary rounded-pill">Spinning</span>' : ''}
+            `;
+            playersList.appendChild(li);
+        }
+    }
+}
+
+function updateCountdown(seconds) {
+    const countdownElement = document.getElementById('countdown');
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    countdownElement.textContent = `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+}
+
+// Join Game Button
+document.getElementById('joinGame').addEventListener('click', () => {
+    socket.emit('join_game');
+});
+
+// Winner Popup (example structure - adapt as needed)
+function showWinnerPopup(winner) {
+    if (!winner) return;
+    const popup = document.createElement('div');
+    popup.className = 'winner-popup'; // Style this class
+    popup.innerHTML = `
+        <h2>Winner!</h2>
+        <div class="emoji" style="font-size: 5em;">${winner.emoji}</div>
+        <h3>${winner.username}</h3>
+        <p>Won the game!</p>
+        <button onclick="this.parentElement.remove()">Close</button>
+    `;
+    document.body.appendChild(popup);
+    // Add timeout to auto-remove or require click
+     setTimeout(() => popup.remove(), 5000); 
+}
+
+// Notification (example structure - adapt as needed)
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `game-notification alert alert-${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+}
+
+// Initial state update (if server sends initial state on connect)
+socket.on('initial_state', (state) => {
+    updateGameState(state);
+    updatePlayersList(state.players);
+    updateCountdown(state.time_remaining);
+     loadGameHistory(); // Load history initially too
+});
+
+</script>
 {% endblock %}
 
 {% block scripts %}

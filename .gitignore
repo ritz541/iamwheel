@@ -48,3 +48,4 @@ test.py
 mongotest.py
 description.txt
 .env
+flask_session/
