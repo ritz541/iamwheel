@@ -1,6 +1,7 @@
 iam/
 # Python
 __pycache__/
+flask_session/
 *.py[cod]
 *$py.class
 *.so
