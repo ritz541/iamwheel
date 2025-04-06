@@ -1019,6 +1019,6 @@ game_state = GameState()
 
 if __name__ == '__main__':
     try:
-        socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
+        socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
     except Exception as e:
         print(f"Server Error: {str(e)}")
