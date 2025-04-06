@@ -1,6 +1,7 @@
 iam/
 # Python
 __pycache__/
+flask_session/
 *.py[cod]
 *$py.class
 *.so
@@ -48,3 +49,4 @@ test.py
 mongotest.py
 description.txt
 .env
+flask_session/
