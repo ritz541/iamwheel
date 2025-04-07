@@ -22,17 +22,32 @@ body {
 
 .wheel-container {
     position: relative;
-    width: 400px;
-    height: 400px;
+    width: 100%;
+    max-width: 400px;
+    height: auto;
+    aspect-ratio: 1/1;
     margin: 0 auto;
+}
+
+.wheel {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transition: transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+    transform: rotate(0deg);
+    background: var(--nb-bg-color);
+    border: var(--nb-border-width) solid var(--nb-border-color);
+    box-shadow: var(--nb-shadow);
+    aspect-ratio: 1;
 }
 
 .grid-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+    grid-template-columns: repeat(5, 1fr);
     gap: 10px;
-    justify-content: center;
-    align-content: center;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: 1;
 }
 
 .grid-container.expanded {
@@ -98,8 +113,6 @@ body {
     margin: 1rem 0;
 }
 
-
-
 .players-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
@@ -154,7 +167,6 @@ body {
     margin: auto;
   }
   
-
 .player-item {
     display: flex;
     align-items: center;
@@ -217,18 +229,6 @@ body {
     z-index: 1000;
 }
 
-.wheel {
-    width: 100%;
-    height: 100%;
-    position: relative;
-    transition: transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99);
-    transform: rotate(0deg);
-    background: var(--nb-bg-color);
-    border: var(--nb-border-width) solid var(--nb-border-color);
-    box-shadow: var(--nb-shadow);
-    aspect-ratio: 1;
-}
-
 .wheel-arrow {
     position: absolute;
     top: -15px;
@@ -270,17 +270,95 @@ body {
     --color-12: #f7d51d;
 }
 
-@media (max-width: 480px) {
+/* Improved mobile styles */
+@media (max-width: 767px) {
+    body {
+        font-size: 12px;
+    }
+    
+    .container {
+        padding: 0 10px;
+    }
+    
+    .wheel-container {
+        max-width: 300px;
+    }
+    
     .grid-container {
-        grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+        gap: 5px;
     }
+    
+    .grid-cell {
+        border-width: 1px;
+    }
+    
+    .card-body {
+        padding: 10px 5px;
+    }
+    
+    h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    h3 {
+        font-size: 1rem;
+    }
+    
+    .winner-popup {
+        width: 90%;
+        max-width: 300px;
+        padding: 1rem;
+    }
+    
+    #joinGame {
+        width: 100%;
+        margin-top: 10px;
+        font-size: 12px;
+        padding: 8px;
+    }
+    
+    /* Balance and timer display */
+    .balance-timer-container {
+        font-size: 12px;
+    }
+}
 
+/* Extra small devices (phones) */
+@media (max-width: 480px) {
+    .wheel-container {
+        max-width: 250px;
+    }
+    
+    .grid-container {
+        grid-template-columns: repeat(5, 1fr);
+        gap: 3px;
+    }
+    
+    .grid-cell {
+        border-width: 1px;
+        min-height: auto;
+    }
+    
     .grid-cell .player-emoji {
-        font-size: 1.2em;
+        font-size: 16px;
+        margin-bottom: 2px;
     }
-
+    
     .grid-cell .player-name {
-        font-size: 0.6em;
+        font-size: 8px;
+    }
+    
+    .balance-timer-container {
+        font-size: 10px;
+    }
+    
+    #countdown {
+        font-size: 14px;
+    }
+    
+    .players-list {
+        font-size: 10px;
     }
 }
 

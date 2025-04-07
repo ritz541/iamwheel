@@ -4,26 +4,23 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wheel.css') }}">
 
 <div class="container">
-    <h1 class="text-center mb-4">Wheel Game</h1>
+    <h1 class="text-center mb-3">Wheel Game</h1>
     <div class="row">
-        <div class="col-md-8 mx-auto">
+        <div class="col-md-8 col-sm-12 mx-auto">
             <div class="card nes-container is-rounded">
                 <div class="card-header nes-container">
                     <h3 class="text-center nes-text">Game Room</h3>
                 </div>
                 <div class="card-body nes-container">
-                    <div class="text-center mb-3">
-                        <p>Your Balance: ₹{{ current_user.user_data.wallet_balance }}</p>
-                    </div>
-                    <div class="text-center mb-3">
-                        <p>Time Left: <span id="countdown">5:00</span></p>
+                    <!-- Balance and Timer in a responsive container -->
+                    <div class="balance-timer-container">
+                        <p class="text-center mb-2">Your Balance: ₹{{ current_user.user_data.wallet_balance }}</p>
+                        <p class="text-center mb-2">Time Left: <span id="countdown">5:00</span></p>
                     </div>
                     
-                    <!-- Wheel Container -->
+                    <!-- Responsive Wheel Container -->
                     <div class="wheel-container">
-                        <div class="wheel"></div>
-                        <div class="wheel-center"></div>
-                        <div class="wheel-arrow"></div>
+                        <div class="grid-container"></div>
                     </div>
 
                     <!-- Game Status -->
@@ -31,15 +28,15 @@
                         Waiting for players...
                     </div>
 
-                    <!-- Players List -->
-                    <div class="mt-4">
-                        <h4 class="text-center mb-3">Current Players</h4>
+                    <!-- Current Players List -->
+                    <div class="mt-3">
+                        <h4 class="text-center mb-2">Current Players</h4>
                         <ul class="players-list nes-list is-disc">
                             <!-- Players will be added dynamically -->
                         </ul>
                     </div>
 
-                    <div class="text-center mt-4">
+                    <div class="text-center mt-3">
                         <button id="joinGame" class="nes-btn is-primary btn-lg">Join Game (₹10)</button>
                     </div>
                 </div>
@@ -48,12 +45,8 @@
     </div>
 </div>
 
-
-
 <script>
-
-
-// WebSocket setup (similar to your existing game.js)
+// WebSocket setup
 const socket = io();
 
 socket.on('connect', () => {
@@ -87,22 +80,18 @@ socket.on('notification', (data) => {
     showNotification(data.message, data.type || 'info');
 });
 
-// Wheel drawing logic (requires wheel.js or similar)
-const wheelCanvas = document.querySelector('.wheel'); // Assuming canvas
-// --- Need your wheel drawing functions here ---
-
 function updateGameState(state) {
     const gameStatus = document.querySelector('.game-status');
     if (state.status === 'waiting') {
         gameStatus.textContent = 'Waiting for players...';
-        gameStatus.className = 'game-status alert alert-info mt-3 text-center';
+        gameStatus.className = 'game-status nes-container is-rounded mt-3 text-center';
     } else if (state.status === 'running') {
         gameStatus.textContent = 'Game in progress!';
-        gameStatus.className = 'game-status alert alert-warning mt-3 text-center';
+        gameStatus.className = 'game-status nes-container is-rounded mt-3 text-center';
         // Start wheel animation if needed
     } else if (state.status === 'finished') {
         gameStatus.textContent = `Game finished! Winner: ${state.winner ? state.winner.username : 'Unknown'}`;
-        gameStatus.className = 'game-status alert alert-success mt-3 text-center';
+        gameStatus.className = 'game-status nes-container is-rounded mt-3 text-center';
     }
     
     // Enable/disable join button
@@ -117,32 +106,23 @@ function updateGameState(state) {
 }
 
 function updatePlayersList(players) {
-    const playersGrid = document.querySelector('.players-grid');
-    playersGrid.innerHTML = ''; // Clear previous grid
+    const playersList = document.querySelector('.players-list');
+    playersList.innerHTML = ''; // Clear previous list
 
     const playerCount = Object.keys(players).length;
 
     if (playerCount === 0) {
-        playersGrid.innerHTML = '<div class="text-center w-100">No players yet</div>';
+        playersList.innerHTML = '<li class="text-center">No players yet</li>';
         return;
     }
 
     for (const id in players) {
         const player = players[id];
-
-        const card = document.createElement('div');
-        card.className = 'player-card';
-
-        card.innerHTML = `
-            <div class="emoji">${player.emoji || '❓'}</div>
-            <div class="username">${player.username || 'Player'}</div>
-            ${player.is_turn ? '<div class="status-badge">🎯 Spinning</div>' : ''}
-        `;
-
-        playersGrid.appendChild(card);
+        const playerItem = document.createElement('li');
+        playerItem.innerHTML = `${player.emoji || '❓'} ${player.username || 'Player'} ${player.is_turn ? '🎯 Spinning' : ''}`;
+        playersList.appendChild(playerItem);
     }
 }
-
 
 function updateCountdown(seconds) {
     const countdownElement = document.getElementById('countdown');
@@ -156,7 +136,7 @@ document.getElementById('joinGame').addEventListener('click', () => {
     socket.emit('join_game');
 });
 
-// Winner Popup (accepts the whole result object now)
+// Winner Popup
 function showWinnerPopup(result) { 
     if (!result || !result.winner) return;
 
@@ -172,10 +152,10 @@ function showWinnerPopup(result) {
     const popup = document.createElement('div');
     popup.className = 'winner-popup'; // Ensure this class is styled in wheel.css
     popup.innerHTML = `
-        <h2 class="title">Winner!</h2> {# Use class for styling #}
-        <div class="emoji">${winner.emoji || '❓'}</div> {# Use class for styling #}
-        <h3 class="player-name">${winner.username || 'Unknown'}</h3> {# Use class for styling #}
-        <p class="prize">Won ${formattedPrize}!</p> {# Display formatted prize #}
+        <h2 class="title">Winner!</h2>
+        <div class="emoji">${winner.emoji || '❓'}</div>
+        <h3 class="player-name">${winner.username || 'Unknown'}</h3>
+        <p class="prize">Won ${formattedPrize}!</p>
         <button onclick="this.parentElement.remove()">Close</button>
     `;
     document.body.appendChild(popup);
@@ -184,7 +164,7 @@ function showWinnerPopup(result) {
     setTimeout(() => popup.remove(), 6000); 
 }
 
-// Notification (example structure - adapt as needed)
+// Notification
 function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
     notification.className = `game-notification alert alert-${type}`;
@@ -193,14 +173,12 @@ function showNotification(message, type = 'info') {
     setTimeout(() => notification.remove(), 3000);
 }
 
-// Initial state update (if server sends initial state on connect)
+// Initial state update
 socket.on('initial_state', (state) => {
     updateGameState(state);
     updatePlayersList(state.players);
     updateCountdown(state.time_remaining);
-
 });
-
 </script>
 {% endblock %}
 
@@ -208,4 +186,5 @@ socket.on('initial_state', (state) => {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 <script src="{{ url_for('static', filename='js/wheel.js') }}"></script>
 {% endblock %}
+
 

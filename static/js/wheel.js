@@ -8,6 +8,13 @@ class WheelGame {
         this.setupSocketListeners();
         this.initializeGrid();
         this.createPopupElements();
+        this.isMobile = window.innerWidth < 768;
+        
+        // Listen for window resize to update mobile status
+        window.addEventListener('resize', () => {
+            this.isMobile = window.innerWidth < 768;
+            this.updateGrid(); // Re-render grid with new size
+        });
         
         console.log('WheelGame initialized');
     }
@@ -28,7 +35,9 @@ class WheelGame {
         this.playersListElement = document.querySelector('.players-list');
         
         // Initialize grid container
-        this.wheelContainer.innerHTML = '<div class="grid-container"></div>';
+        if (this.wheelContainer && !this.wheelContainer.querySelector('.grid-container')) {
+            this.wheelContainer.innerHTML = '<div class="grid-container"></div>';
+        }
         this.gridContainer = this.wheelContainer.querySelector('.grid-container');
         
         if (this.joinButton) {
@@ -36,6 +45,21 @@ class WheelGame {
                 e.preventDefault();
                 this.joinGame();
             };
+        }
+    }
+
+    initializeGrid() {
+        // Create empty grid cells initially
+        if (this.gridContainer) {
+            // Determine grid size based on screen
+            const gridSize = this.isMobile ? 9 : 12;
+            this.gridContainer.innerHTML = '';
+            
+            for (let i = 0; i < gridSize; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell';
+                this.gridContainer.appendChild(cell);
+            }
         }
     }
 
@@ -102,15 +126,37 @@ class WheelGame {
     }
 
     updateGrid() {
+        if (!this.gridContainer) return;
+        
         // Clear existing cells
         this.gridContainer.innerHTML = '';
         
-        // Determine if we need expanded grid (more than 12 players)
-        const needsExpanded = this.players.length > 12;
-        this.gridContainer.classList.toggle('expanded', needsExpanded);
+        // Determine grid size based on screen size
+        const isMobile = window.innerWidth < 768;
+        const isSmallMobile = window.innerWidth < 480;
         
-        // Calculate total cells based on grid type
-        const totalCells = needsExpanded ? 20 : 12; // 5x4 or 4x3
+        // Adjust grid size based on device
+        let totalCells = 12; // Default for desktop (4x3)
+        
+        if (isSmallMobile) {
+            totalCells = 9; // 3x3 for very small screens
+            this.gridContainer.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        } else if (isMobile) {
+            totalCells = 12; // 4x3 for mobile
+            this.gridContainer.style.gridTemplateColumns = 'repeat(4, 1fr)';
+        } else {
+            // For desktop
+            totalCells = 12; // 4x3
+            this.gridContainer.style.gridTemplateColumns = 'repeat(4, 1fr)';
+        }
+        
+        // If we have many players, expand grid
+        if (this.players.length > totalCells) {
+            totalCells = Math.min(20, Math.ceil(this.players.length * 1.2)); // Allow space for more players
+            const columns = isSmallMobile ? 3 : 4;
+            this.gridContainer.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+        }
+        
         const playerPositions = this.getRandomPositions(totalCells, this.players.length);
         
         for (let i = 0; i < totalCells; i++) {
@@ -118,17 +164,25 @@ class WheelGame {
             cell.className = 'grid-cell';
             
             const playerIndex = playerPositions.indexOf(i);
-            if (playerIndex !== -1) {
+            if (playerIndex !== -1 && this.players[playerIndex]) {
                 const player = this.players[playerIndex];
                 const colorIndex = playerIndex % 12; // We have 12 colors defined in CSS
                 
                 cell.classList.add('occupied');
                 cell.style.setProperty('--player-color', `var(--color-${colorIndex + 1})`);
                 
-                cell.innerHTML = `
-                    <div class="player-emoji">${player.emoji}</div>
-                    <div class="player-name">${player.username}</div>
-                `;
+                // Simplified inner HTML for mobile
+                if (isMobile) {
+                    cell.innerHTML = `
+                        <div class="player-emoji">${player.emoji || '🎮'}</div>
+                        <div class="player-name">${player.username || 'Player'}</div>
+                    `;
+                } else {
+                    cell.innerHTML = `
+                        <div class="player-emoji">${player.emoji || '🎮'}</div>
+                        <div class="player-name">${player.username || 'Player'}</div>
+                    `;
+                }
             }
             
             this.gridContainer.appendChild(cell);
