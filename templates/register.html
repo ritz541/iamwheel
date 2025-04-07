@@ -24,14 +24,8 @@
                     <div class="mb-3">
                         <label class="form-label">Choose Your Emoji</label>
                         <div class="emoji-selector">
-                            <div class="emoji-grid">
-                                {% for emoji in ['🎮', '🎲', '🎯', '🎪', '🎨', '🎭', '🎪', '🎢', '🎡', '🎠', '🎪', '🎬'] %}
-                                <div class="emoji-option">
-                                    <input type="radio" name="selected_emoji" value="{{ emoji }}" id="emoji_{{ loop.index }}" {% if loop.first %}checked{% endif %}>
-                                    <label for="emoji_{{ loop.index }}" class="emoji-label">{{ emoji }}</label>
-                                </div>
-                                {% endfor %}
-                            </div>
+                            <input type="text" id="selected_emoji" name="selected_emoji" class="form-control" value="🎮" readonly required>
+                            <button type="button" id="emoji-button" class="btn btn-secondary">Choose Emoji</button>
                         </div>
                     </div>
                     <div class="text-center">
@@ -45,4 +39,71 @@
         </div>
     </div>
 </div>
+
+<!-- Add emoji picker script -->
+<script src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1.18.3/index.js" type="module"></script>
+<script type="module">
+    // Create and append the emoji-picker element
+    const picker = document.createElement('emoji-picker');
+    document.body.appendChild(picker);
+    
+    // Style the picker
+    picker.style.position = 'absolute';
+    picker.style.zIndex = '999';
+    picker.style.display = 'none';
+    
+    // Get DOM elements
+    const button = document.getElementById('emoji-button');
+    const input = document.getElementById('selected_emoji');
+    
+    // Add event listener for emoji selection
+    picker.addEventListener('emoji-click', event => {
+        input.value = event.detail.unicode;
+        picker.style.display = 'none';
+    });
+    
+    // Show/hide picker on button click
+    button.addEventListener('click', (e) => {
+        e.preventDefault(); // Prevent form submission
+        if (picker.style.display === 'none') {
+            const rect = button.getBoundingClientRect();
+            picker.style.top = `${rect.bottom + window.scrollY}px`;
+            picker.style.left = `${rect.left + window.scrollX}px`;
+            picker.style.display = 'block';
+        } else {
+            picker.style.display = 'none';
+        }
+    });
+    
+    // Hide picker when clicking outside
+    document.addEventListener('click', (e) => {
+        if (e.target !== button && !picker.contains(e.target)) {
+            picker.style.display = 'none';
+        }
+    });
+</script>
+
+<style>
+.emoji-selector {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    position: relative;
+}
+
+#selected_emoji {
+    width: 60px;
+    text-align: center;
+    font-size: 24px;
+}
+
+emoji-picker {
+    --num-columns: 8;
+    --category-emoji-size: 24px;
+    --emoji-size: 24px;
+    --background: white;
+    --border-color: #ccc;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+</style>
 {% endblock %}
