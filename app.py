@@ -165,7 +165,7 @@ class GameState:
         game_data = {
             'status': 'joining',
             'players': [],
-            'timer': 300,
+            'timer': 90,
             'break_timer': 15,  # 15 second break timer
             'is_break': False,
             'game_id': str(uuid.uuid4()),
