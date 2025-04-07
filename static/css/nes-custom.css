@@ -56,7 +56,7 @@ body {
     background-color: var(--nes-error) !important;
 }
 
-/* Wheel Game Specific Styles */
+/* Paiso Specific Styles */
 .wheel-container {
     border: 4px solid var(--nes-text);
     padding: 1rem;
