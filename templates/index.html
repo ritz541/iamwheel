@@ -3,12 +3,32 @@
 {% block title %}Welcome - Wheel Game{% endblock %}
 
 {% block content %}
+<style>
+    .interactive-icon {
+        width: 150px;
+        height: 150px;
+        border: 3px solid black;
+        padding: 6px;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        cursor: pointer;
+        border-radius: 10px;
+    }
+
+    .interactive-icon:hover {
+        transform: scale(1.1) rotate(3deg);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+</style>
+
 <div class="container my-5">
     <div class="p-5 text-center rounded-3 hero-section">
-        <img src="{{ url_for('static', filename='images/wheel_icon.png') }}" alt="Wheel Icon" width="72" height="72" class="mb-3" style="border: 2px solid black; padding: 4px;">
+        <img src="{{ url_for('static', filename='images/girl.gif') }}" alt="Wheel Icon"
+             class="mb-3 interactive-icon">
+        
         <h1 class="display-4">Welcome to the Wheel Game!</h1>
         <p class="lead col-lg-8 mx-auto">Spin the wheel, test your luck, and win big! Experience the thrill of the game.</p>
         <hr class="my-4" style="border-top: 2px solid black;">
+
         {% if current_user.is_authenticated %}
             <p>Ready to try your luck?</p>
             <a href="{{ url_for('game') }}" class="btn btn-primary btn-lg px-4 gap-3">Play Now <i class="bi bi-arrow-right"></i></a>
