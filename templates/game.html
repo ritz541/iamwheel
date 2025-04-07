@@ -7,11 +7,11 @@
     <h1 class="text-center mb-4">Wheel Game</h1>
     <div class="row">
         <div class="col-md-8 mx-auto">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="text-center">Game Room</h3>
+            <div class="card nes-container is-rounded">
+                <div class="card-header nes-container">
+                    <h3 class="text-center nes-text">Game Room</h3>
                 </div>
-                <div class="card-body">
+                <div class="card-body nes-container">
                     <div class="text-center mb-3">
                         <p>Your Balance: ₹{{ current_user.user_data.wallet_balance }}</p>
                     </div>
@@ -27,20 +27,20 @@
                     </div>
 
                     <!-- Game Status -->
-                    <div class="game-status alert alert-info mt-3 text-center">
+                    <div class="game-status nes-container is-rounded mt-3 text-center">
                         Waiting for players...
                     </div>
 
                     <!-- Players List -->
                     <div class="mt-4">
                         <h4 class="text-center mb-3">Current Players</h4>
-                        <ul class="players-list list-group">
+                        <ul class="players-list nes-list is-disc">
                             <!-- Players will be added dynamically -->
                         </ul>
                     </div>
 
                     <div class="text-center mt-4">
-                        <button id="joinGame" class="btn btn-primary btn-lg">Join Game (₹10)</button>
+                        <button id="joinGame" class="nes-btn is-primary btn-lg">Join Game (₹10)</button>
                     </div>
                 </div>
             </div>
@@ -48,113 +48,10 @@
     </div>
 </div>
 
-<!-- Game History Section -->
-<div class="game-history-section">
-    <div class="history-tabs">
-        <button class="tab-btn active" data-tab="my-games">My Games</button>
-    </div>
-    
-    <div class="tab-content active" id="my-games">
-        <div class="stats-summary">
-            <div class="stat-item">
-                <span class="stat-label">Total Games</span>
-                <span class="stat-value" id="total-games">0</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-label">Total Wins</span>
-                <span class="stat-value" id="total-wins">0</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-label">Total Earnings</span>
-                <span class="stat-value" id="total-earnings">₹0</span>
-            </div>
-        </div>
-        <div class="games-list" id="my-games-list"></div>
-    </div>
-    
 
-</div>
 
 <script>
-// Game history handling
-function loadGameHistory() {
-    // Load user's games
-    fetch('/api/user/games')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Failed to fetch user games');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (!data || typeof data !== 'object') {
-                throw new Error('Invalid response data');
-            }
-            updateStats(data);
-            displayGames(data.games || [], 'my-games-list');
-        })
-        .catch(error => {
-            console.error('Error loading user games:', error);
-            document.getElementById('my-games-list').innerHTML = 
-                '<div class="text-center text-danger">Failed to load your games. Please try again later.</div>';
-            // Reset stats on error
-            updateStats({total_games: 0, total_wins: 0, total_earnings: 0});
-        });
-    
 
-}
-
-function updateStats(data) {
-    document.getElementById('total-games').textContent = data.total_games;
-    document.getElementById('total-wins').textContent = data.total_wins;
-    document.getElementById('total-earnings').textContent = 
-        new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR'
-        }).format(data.total_earnings);
-}
-
-function displayGames(games, containerId) {
-    if (!games || !Array.isArray(games)) {
-        console.error('Invalid games data:', games);
-        document.getElementById(containerId).innerHTML = '<div class="text-center">Error loading games data</div>';
-        return;
-    }
-
-    const container = document.getElementById(containerId);
-    if (games.length === 0) {
-        container.innerHTML = '<div class="text-center">No games found</div>';
-        return;
-    }
-
-    try {
-        container.innerHTML = games.map(game => {
-            // Ensure all required properties exist
-            if (!game.timestamp || !game.winner || !game.prize_pool) {
-                console.error('Invalid game data:', game);
-                return '';
-            }
-
-            return `
-                <div class="game-item">
-                    <div class="game-info">
-                        <div class="game-time">${new Date(game.timestamp).toLocaleString()}</div>
-                        <div class="game-details">
-                            Winner: <span class="winner-info">${game.winner.emoji || '❓'} ${game.winner.username || 'Unknown'}</span> |
-                            Prize: <span class="prize-pool">₹${game.prize_pool}</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    } catch (error) {
-        console.error('Error rendering games:', error);
-        container.innerHTML = '<div class="text-center">Error rendering game history</div>';
-    }
-}
-
-// Initial load
-document.addEventListener('DOMContentLoaded', loadGameHistory);
 
 // WebSocket setup (similar to your existing game.js)
 const socket = io();
@@ -292,7 +189,7 @@ socket.on('initial_state', (state) => {
     updateGameState(state);
     updatePlayersList(state.players);
     updateCountdown(state.time_remaining);
-     loadGameHistory(); // Load history initially too
+
 });
 
 </script>
