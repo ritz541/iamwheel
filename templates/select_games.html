@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="text-center mb-4">Select Game</h1>
+    
+    <div class="row justify-content-center">
+        <!-- ₹10 Game Card -->
+        <div class="col-md-5 mb-4">
+            <div class="nes-container with-title is-centered">
+                <p class="title">Normal Game</p>
+                <div class="game-card">
+                    <div class="game-info">
+                        <p><i class="nes-icon coin"></i> Entry Fee: ₹10</p>
+                        <p><i class="nes-icon trophy"></i> Prize Pool: 90% of total entries</p>
+                        <p><i class="nes-icon clock"></i> Duration: 3 minutes</p>
+                    </div>
+                    <a href="{{ url_for('game') }}" class="nes-btn is-primary">Play ₹10 Game</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- ₹100 Game Card -->
+        <div class="col-md-5 mb-4">
+            <div class="nes-container with-title is-centered">
+                <p class="title">Premium Game</p>
+                <div class="game-card">
+                    <div class="game-info">
+                        <p><i class="nes-icon coin"></i> Entry Fee: ₹100</p>
+                        <p><i class="nes-icon trophy"></i> Prize Pool: 90% of total entries</p>
+                        <p><i class="nes-icon clock"></i> Duration: 3 minutes</p>
+                    </div>
+                    <a href="{{ url_for('rs100_game') }}" class="nes-btn is-primary">Play ₹100 Game</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.game-card {
+    padding: 20px;
+    text-align: center;
+}
+
+.game-info {
+    margin-bottom: 20px;
+}
+
+.game-info p {
+    margin: 10px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.nes-btn {
+    width: 100%;
+    margin-top: 10px;
+}
+
+@media (max-width: 767px) {
+    .game-card {
+        padding: 15px;
+    }
+    
+    .game-info p {
+        font-size: 0.9em;
+    }
+}
+</style>
+{% endblock %} 

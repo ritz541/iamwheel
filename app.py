@@ -688,6 +688,9 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('select_game'))
+
     if request.method == 'POST':
         phone = request.form.get('phone')
         password = request.form.get('password')
@@ -714,7 +717,7 @@ def login():
             session['is_admin'] = user_obj.is_admin
             
             flash('Login successful!', 'success')
-            return redirect(url_for('game'))
+            return redirect(url_for('select_game'))
  
         flash('Invalid phone number or password')
         return redirect(url_for('login'))
@@ -729,10 +732,20 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
+@app.route('/select-game')
+@login_required
+def select_game():
+    return render_template('select_games.html')
+
 @app.route('/game')
 @login_required
 def game():
     return render_template('game.html')
+
+@app.route('/rs100-game')
+@login_required
+def rs100_game():
+    return render_template('rs100_game.html')
 
 @app.route('/wallet')
 @login_required
