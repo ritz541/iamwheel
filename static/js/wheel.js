@@ -64,42 +64,50 @@ class WheelGame {
     }
 
     showWinnerPopup(winner) {
-        // Remove existing popup if any
-        const existingPopup = document.querySelector('.winner-popup');
-        if (existingPopup) {
-            existingPopup.remove();
-        }
+        if (!winner || !winner.winner) return;
 
-        // Create new popup
-        const popup = document.createElement('div');
-        popup.className = 'winner-popup';
-        
-        // Format prize money with commas
+        const result = winner.winner;
+        const prizeAmount = result.prize_pool;
+
+        // Format the prize amount as currency
         const formattedPrize = new Intl.NumberFormat('en-IN', {
             style: 'currency',
             currency: 'INR'
-        }).format(winner.prize);
+        }).format(prizeAmount);
 
-        popup.innerHTML = `
-            <div class="title">🎉 Winner! 🎉</div>
-            <div class="emoji">${winner.emoji}</div>
-            <div class="player-name">${winner.username}</div>
-            <div class="prize">Prize: ${formattedPrize}</div>
+        // Create dialog if it doesn't exist
+        let dialog = document.getElementById('winner-dialog');
+        if (!dialog) {
+            dialog = document.createElement('dialog');
+            dialog.className = 'nes-dialog is-rounded';
+            dialog.id = 'winner-dialog';
+            document.body.appendChild(dialog);
+        }
+
+        // Set dialog content
+        dialog.innerHTML = `
+            <form method="dialog">
+                <p class="title">Winner!</p>
+                <div class="winner-content">
+                    <div class="winner-emoji">${result.emoji || '🎮'}</div>
+                    <p class="winner-name">${result.username || 'Unknown'}</p>
+                    <p class="prize-amount">Won ${formattedPrize}!</p>
+                </div>
+                <menu class="dialog-menu">
+                    <button class="nes-btn is-primary">Close</button>
+                </menu>
+            </form>
         `;
-        
-        document.body.appendChild(popup);
-        
-        // Force reflow
-        popup.offsetHeight;
-        
-        // Show popup
-        popup.classList.add('show');
-        
-        // Remove popup after 5 seconds
+
+        // Show the dialog
+        dialog.showModal();
+
+        // Auto-close after 6 seconds
         setTimeout(() => {
-            popup.classList.remove('show');
-            setTimeout(() => popup.remove(), 300);
-        }, 5000);
+            if (dialog.open) {
+                dialog.close();
+            }
+        }, 6000);
     }
 
     showExpansionNotice() {
@@ -215,20 +223,39 @@ class WheelGame {
         return positions;
     }
 
-    showNotification(message, type = 'info', duration = 3000) {
-        const notification = document.createElement('div');
-        notification.className = `game-notification ${type}`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        // Trigger animation
-        setTimeout(() => notification.classList.add('show'), 10);
-        
-        // Remove after duration
-        setTimeout(() => {
-            notification.classList.remove('show');
-            setTimeout(() => notification.remove(), 300);
-        }, duration);
+    showNotification(message, type = 'info') {
+        // Create dialog if it doesn't exist
+        let dialog = document.getElementById('notification-dialog');
+        if (!dialog) {
+            dialog = document.createElement('dialog');
+            dialog.className = 'nes-dialog is-rounded';
+            dialog.id = 'notification-dialog';
+            document.body.appendChild(dialog);
+        }
+
+        // Set dialog content
+        dialog.innerHTML = `
+            <form method="dialog">
+                <p class="title">${type.charAt(0).toUpperCase() + type.slice(1)}</p>
+                <p>${message}</p>
+                <menu class="dialog-menu">
+                    <button class="nes-btn is-primary">OK</button>
+                </menu>
+            </form>
+        `;
+
+        // Show the dialog
+        dialog.showModal();
+
+        // Add event listener to close on backdrop click
+        dialog.addEventListener('click', (e) => {
+            const rect = dialog.getBoundingClientRect();
+            const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+                rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+            if (!isInDialog) {
+                dialog.close();
+            }
+        });
     }
 
     setupSocketListeners() {
@@ -370,3 +397,69 @@ class WheelGame {
 document.addEventListener('DOMContentLoaded', () => {
     window.wheelGame = new WheelGame();
 });
+
+// Add styles to the document
+const style = document.createElement('style');
+style.textContent = `
+    .nes-dialog {
+        border-image-repeat: stretch;
+        padding: 1rem;
+        max-width: 90%;
+    }
+
+    .nes-dialog .title {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+        color: #212529;
+    }
+
+    .nes-dialog .dialog-menu {
+        margin-top: 2rem;
+        text-align: right;
+        padding: 0;
+    }
+
+    .winner-content {
+        text-align: center;
+        padding: 1rem 0;
+    }
+
+    .winner-content .winner-emoji {
+        font-size: 3rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .winner-content .winner-name {
+        font-size: 1.2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .winner-content .prize-amount {
+        font-size: 1.5rem;
+        color: #28a745;
+    }
+
+    @media (max-width: 480px) {
+        .nes-dialog {
+            padding: 0.5rem;
+            margin: 1rem;
+        }
+
+        .nes-dialog .title {
+            font-size: 1.2rem;
+        }
+
+        .winner-content .winner-emoji {
+            font-size: 2.5rem;
+        }
+
+        .winner-content .winner-name {
+            font-size: 1rem;
+        }
+
+        .winner-content .prize-amount {
+            font-size: 1.2rem;
+        }
+    }
+`;
+document.head.appendChild(style);
