@@ -37,7 +37,7 @@
                     </div>
 
                     <div class="text-center mt-3">
-                        <button id="joinGame" class="nes-btn is-primary btn-lg">Join Game (₹10)</button>
+                        <button id="joinGame" class="nes-btn is-primary btn-lg">Join Game (₹100)</button>
                     </div>
                 </div>
             </div>
@@ -98,7 +98,7 @@ function updateGameState(state) {
     const joinButton = document.getElementById('joinGame');
     if (state.status === 'waiting') {
         joinButton.disabled = false;
-        joinButton.textContent = 'Join Game (₹10)';
+        joinButton.textContent = 'Join Game (₹100)';
     } else {
         joinButton.disabled = true;
         joinButton.textContent = 'Game in Progress';

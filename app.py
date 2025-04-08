@@ -390,8 +390,8 @@ def update_game_timer():
                                 winner = players[winner_idx]
                                 
                                 # Calculate prize
-                                total_pool = len(players) * 10
-                                winner_prize = int(total_pool * 0.8)
+                                total_pool = len(players) * 100  # Updated to ₹100 entry fee
+                                winner_prize = int(total_pool * 0.9)  # 90% of total entries
                                 
                                 # Update winner's wallet
                                 db.users.update_one(
@@ -480,7 +480,7 @@ def handle_join_game():
         return
 
     # Check wallet balance
-    if current_user.user_data.get('wallet_balance', 0) < 10:
+    if current_user.user_data.get('wallet_balance', 0) < 100:
         emit('join_game_response', {'success': False, 'message': 'Insufficient balance'})
         return
 
@@ -496,7 +496,7 @@ def handle_join_game():
     # Deduct entry fee
     db.users.update_one(
         {'_id': ObjectId(current_user.id)},
-        {'$inc': {'user_data.wallet_balance': -10}}
+        {'$inc': {'user_data.wallet_balance': -100}}
     )
 
     # Get updated game state
@@ -531,7 +531,8 @@ def select_winner():
     
     winner = random.choice(game_data['players'])
     total_players = len(game_data['players'])
-    prize_money = total_players * 10  # Each player contributes 10
+    total_pool = total_players * 100  # Each player contributes 100
+    prize_money = int(total_pool * 0.9)  # 90% of total entries as per the game description
 
     try:
         # Store game details in games collection
@@ -539,13 +540,13 @@ def select_winner():
             'timestamp': datetime.utcnow(),
             'participants': game_data['players'],
             'participant_count': total_players,
-            'prize_pool': prize_money,
+            'prize_pool': total_pool,  # Store the total pool amount
             'winner': {
                 'id': winner['id'],
                 'username': winner['username'],
                 'emoji': winner['emoji']
             },
-            'entry_fee': 10
+            'entry_fee': 100
         }
         result = db.games.insert_one(game_record)
         game_id = result.inserted_id
@@ -561,7 +562,8 @@ def select_winner():
                     'game_id': game_id,
                     'timestamp': game_record['timestamp'],
                     'won': False,
-                    'prize_pool': prize_money
+                    'prize_pool': total_pool,
+                    'prize_money': prize_money
                 }
             }}
         )
