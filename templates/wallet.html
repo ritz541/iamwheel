@@ -1,17 +1,110 @@
 {% extends "base.html" %}
 
+{% block title %}Profile - Paiso{% endblock %}
+
 {% block content %}
-<div class="container">
-    <div class="row">
-        <!-- Wallet Balance Card -->
-        <div class="col-md-12 mb-4">
-            <div class="card">
-                <div class="card-body text-center">
-                    <h3>Wallet Balance</h3>
-                    <h2 class="text-primary">₹{{ current_user.user_data.wallet_balance }}</h2>
-                </div>
+<style>
+    .profile-header {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .profile-avatar {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3rem;
+        background-color: #f0f0f0;
+        border: 4px solid var(--nes-text);
+    }
+    
+    .profile-stats {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.5rem;
+    }
+    
+    .stat-card {
+        flex: 1;
+        min-width: 150px;
+        padding: 1rem;
+        text-align: center;
+        border: 4px solid var(--nes-text);
+    }
+    
+    .tab-content {
+        display: none;
+    }
+    
+    .tab-content.active {
+        display: block;
+    }
+    
+    .nav-tabs .nav-link.active {
+        background-color: var(--nes-primary);
+        color: white;
+    }
+    
+    .transaction-filter {
+        margin-bottom: 1rem;
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .badge {
+        padding: 0.5rem;
+        border-radius: 4px;
+    }
+</style>
+<div class="container my-4">
+    <!-- Profile Header -->
+    <div class="nes-container is-rounded">
+        <div class="profile-header">
+            <div class="profile-avatar">
+                {{ current_user.user_data.emoji }}
+            </div>
+            <div>
+                <h2>{{ current_user.user_data.username }}</h2>
+                <p>Member since: {{ current_user.created_at.strftime('%B %d, %Y') if current_user.created_at else 'N/A' }}</p>
+                <p>Phone: {{ current_user.user_data.phone if current_user.user_data.phone else 'Not provided' }}</p>
             </div>
         </div>
+    </div>
+
+    <!-- Profile Stats -->
+    <div class="profile-stats mt-4">
+        <div class="stat-card nes-container is-rounded">
+            <h4>Wallet Balance</h4>
+            <h2 class="text-primary">₹{{ current_user.user_data.wallet_balance }}</h2>
+        </div>
+        <div class="stat-card nes-container is-rounded">
+            <h4>Games Played</h4>
+            <h2>{{ current_user.game_history|length }}</h2>
+        </div>
+        <div class="stat-card nes-container is-rounded">
+            <h4>Last Active</h4>
+            <p>{{ current_user.last_active.strftime('%d %b, %Y') if current_user.last_active else 'N/A' }}</p>
+        </div>
+    </div>
+
+    <!-- Profile Tabs -->
+    <ul class="nav nav-tabs mt-4" id="profileTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="transactions-tab" data-bs-toggle="tab" data-bs-target="#transactions" type="button" role="tab">Transactions</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="games-tab" data-bs-toggle="tab" data-bs-target="#games" type="button" role="tab">Game History</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" type="button" role="tab">Account Settings</button>
+        </li>
+    </ul>
 
         <!--
         <div class="col-md-6 mb-4">
@@ -74,13 +167,20 @@
                 </div>
             </div>
         </div>-->
-        <!-- Transaction History -->
-        <div class="col-md-12">
-            <div class="card">
+    <div class="tab-content mt-3" id="profileTabsContent">
+        <!-- Transactions Tab -->
+        <div class="tab-pane fade show active" id="transactions" role="tabpanel">
+            <div class="card nes-container is-rounded">
                 <div class="card-header">
                     <h4>Transaction History</h4>
                 </div>
                 <div class="card-body">
+                    <div class="transaction-filter">
+                        <button class="btn btn-sm btn-outline-primary filter-btn" data-filter="all">All</button>
+                        <button class="btn btn-sm btn-outline-success filter-btn" data-filter="deposit">Deposits</button>
+                        <button class="btn btn-sm btn-outline-danger filter-btn" data-filter="withdrawal">Withdrawals</button>
+                        <button class="btn btn-sm btn-outline-warning filter-btn" data-filter="game">Game Transactions</button>
+                    </div>
                     <div class="table-responsive">
                         <table class="table">
                             <thead>
@@ -93,7 +193,7 @@
                             </thead>
                             <tbody>
                                 {% for transaction in transactions %}
-                                <tr>
+                                <tr class="transaction-row" data-type="{{ transaction.type }}">
                                     <td>{{ transaction.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                                     <td>{{ transaction.type }}</td>
                                     <td>₹{{ transaction.amount }}</td>
@@ -110,6 +210,218 @@
                 </div>
             </div>
         </div>
+
+        <!-- Game History Tab -->
+        <div class="tab-pane fade" id="games" role="tabpanel">
+            <div class="card nes-container is-rounded">
+                <div class="card-header">
+                    <h4>Game History</h4>
+                </div>
+                <div class="card-body">
+                    {% if current_user.game_history %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Game</th>
+                                    <th>Result</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for game in current_user.game_history %}
+                                <tr>
+                                    <td>{{ game.date.strftime('%Y-%m-%d %H:%M') if game.date else 'N/A' }}</td>
+                                    <td>{{ game.game_type }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if game.won else 'danger' }}">
+                                            {{ 'Won' if game.won else 'Lost' }}
+                                        </span>
+                                    </td>
+                                    <td>₹{{ game.amount }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <p>You haven't played any games yet.</p>
+                        <a href="{{ url_for('select_game') }}" class="btn btn-primary">Play Now</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Settings Tab -->
+        <div class="tab-pane fade" id="settings" role="tabpanel">
+            <div class="card nes-container is-rounded">
+                <div class="card-header">
+                    <h4>Account Settings</h4>
+                </div>
+                <div class="card-body">
+                    <form id="profileForm">
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" value="{{ current_user.user_data.username }}" readonly>
+                            <small class="text-muted">Username cannot be changed</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="phone" class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" id="phone" value="{{ current_user.user_data.phone }}" readonly>
+                            <small class="text-muted">Phone number cannot be changed</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Your Emoji</label>
+                            <div class="emoji-selector">
+                                <input type="text" id="selected_emoji" class="form-control" value="{{ current_user.user_data.emoji }}" readonly>
+                                <button type="button" id="emoji-button" class="btn btn-secondary">Change Emoji</button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="current_password" class="form-label">Current Password</label>
+                            <input type="password" class="form-control" id="current_password">
+                        </div>
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">New Password</label>
+                            <input type="password" class="form-control" id="new_password">
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Confirm New Password</label>
+                            <input type="password" class="form-control" id="confirm_password">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </form>
+
+                    <hr class="my-4">
+
+                    <h5>Bank Account Details</h5>
+                    <form id="bankDetailsForm">
+                        <div class="mb-3">
+                            <label for="bank_account" class="form-label">Bank Account Number</label>
+                            <input type="text" class="form-control" id="bank_account" name="bank_account">
+                        </div>
+                        <div class="mb-3">
+                            <label for="ifsc_code" class="form-label">IFSC Code</label>
+                            <input type="text" class="form-control" id="ifsc_code" name="ifsc_code">
+                        </div>
+                        <div class="mb-3">
+                            <label for="account_holder" class="form-label">Account Holder Name</label>
+                            <input type="text" class="form-control" id="account_holder" name="account_holder">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Bank Details</button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1.18.3/index.js" type="module"></script>
+<script>
+    // Tab functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        // Create and append the emoji-picker element
+        const picker = document.createElement('emoji-picker');
+        document.body.appendChild(picker);
+        
+        // Style the picker
+        picker.style.position = 'absolute';
+        picker.style.zIndex = '999';
+        picker.style.display = 'none';
+        
+        // Get DOM elements
+        const button = document.getElementById('emoji-button');
+        const input = document.getElementById('selected_emoji');
+        
+        // Add event listener for emoji selection
+        picker.addEventListener('emoji-click', event => {
+            input.value = event.detail.unicode;
+            picker.style.display = 'none';
+        });
+        
+        // Show/hide picker on button click
+        button.addEventListener('click', (e) => {
+            e.preventDefault(); // Prevent form submission
+            if (picker.style.display === 'none') {
+                const rect = button.getBoundingClientRect();
+                picker.style.top = `${rect.bottom + window.scrollY}px`;
+                picker.style.left = `${rect.left + window.scrollX}px`;
+                picker.style.display = 'block';
+            } else {
+                picker.style.display = 'none';
+            }
+        });
+        
+        // Hide picker when clicking outside
+        document.addEventListener('click', (e) => {
+            if (e.target !== button && !picker.contains(e.target)) {
+                picker.style.display = 'none';
+            }
+        });
+
+        // Transaction filtering
+        const filterButtons = document.querySelectorAll('.filter-btn');
+        const transactionRows = document.querySelectorAll('.transaction-row');
+        
+        filterButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const filter = button.getAttribute('data-filter');
+                
+                // Update active button
+                filterButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                
+                // Filter transactions
+                transactionRows.forEach(row => {
+                    if (filter === 'all' || row.getAttribute('data-type') === filter) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        });
+
+        // Form submission handlers
+        document.getElementById('profileForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            // This would normally submit to a backend endpoint
+            alert('Profile update functionality will be implemented by the backend');
+        });
+
+        document.getElementById('bankDetailsForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            // This would normally submit to a backend endpoint
+            alert('Bank details update functionality will be implemented by the backend');
+        });
+    });
+</script>
+
+<style>
+.emoji-selector {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    position: relative;
+}
+
+#selected_emoji {
+    width: 60px;
+    text-align: center;
+    font-size: 24px;
+}
+
+emoji-picker {
+    --background: #fff;
+    --border-color: #333;
+    --category-emoji-size: 1.25rem;
+    --emoji-size: 1.5rem;
+    --emoji-padding: 0.5rem;
+}
+</style>
 {% endblock %}
