@@ -67,7 +67,8 @@ class WheelGame {
         if (!winner || !winner.winner) return;
 
         const result = winner.winner;
-        const prizeAmount = result.prize_pool;
+        // Use prize property directly, with fallback to prize_pool for backward compatibility
+        const prizeAmount = result.prize || result.prize_pool || 0;
 
         // Format the prize amount as currency
         const formattedPrize = new Intl.NumberFormat('en-IN', {
@@ -326,10 +327,17 @@ class WheelGame {
         this.socket.on('game_end', (data) => {
             console.log('Game ended:', data);
             if (data.winner) {
-                const winner = this.players.find(p => p.username === data.winner);
-                if (winner) {
-                    this.announceWinner(winner);
-                }
+                // Find the player in our local array
+                const playerObj = this.players.find(p => p.username === data.winner.username || p.username === data.winner);
+                
+                // Create a complete winner object with prize information
+                const winner = {
+                    ...playerObj, // Include player details (emoji, username, etc.)
+                    prize: data.prize || data.winner.prize || 0, // Get prize from data or winner object
+                    prize_pool: data.prize_pool || data.winner.prize_pool || 0 // Fallback for backward compatibility
+                };
+                
+                this.announceWinner(winner);
             }
             
             if (this.joinButton) {
@@ -370,10 +378,17 @@ class WheelGame {
         });
 
         if (this.statusElement) {
+            // Format prize amount consistently with showWinnerPopup
+            const prizeAmount = winner.prize || winner.prize_pool || 0;
+            const formattedPrize = new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR'
+            }).format(prizeAmount);
+            
             this.statusElement.innerHTML = `
                 <div class="alert alert-success">
                     Winner: ${winner.username} ${winner.emoji}<br>
-                    Prize: ₹${winner.prize}
+                    Prize: ${formattedPrize}
                 </div>
             `;
         }
