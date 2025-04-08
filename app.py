@@ -1007,6 +1007,38 @@ def razorpay_deposit():
             }
             order = razorpay_client.order.create(data=order_data)
             
+            # Create transaction record with completed status
+            transaction = {
+                'user_id': ObjectId(current_user.id),
+                'type': 'deposit',
+                'amount': amount,
+                'status': 'completed',  # Set status as completed immediately
+                'created_at': datetime.now(timezone.utc),
+                'transaction_id': str(uuid.uuid4()),
+                'username': current_user.user_data['username'],
+                'razorpay_order_id': order['id']
+            }
+            db.transactions.insert_one(transaction)
+            
+            # Update user's wallet balance immediately
+            db.users.update_one(
+                {'_id': ObjectId(current_user.id)},
+                {'$inc': {'user_data.wallet_balance': amount}}
+            )
+            
+            # Add notification for successful deposit
+            if 'notifications' not in db.list_collection_names():
+                db.create_collection('notifications')
+            
+            notification = {
+                'user_id': ObjectId(current_user.id),
+                'type': 'deposit',
+                'message': f'Successfully deposited ₹{amount:.2f}',
+                'created_at': datetime.now(timezone.utc),
+                'read': False
+            }
+            db.notifications.insert_one(notification)
+            
             return jsonify({
                 'order_id': order['id'],
                 'amount': order['amount'],
@@ -1031,36 +1063,6 @@ def razorpay_withdraw():
             if current_user.user_data['wallet_balance'] < amount:
                 return jsonify({'error': 'Insufficient balance'}), 400
 
-            # Create a payment link for withdrawal
-            payment_data = {
-                'amount': int(amount * 100),  # amount in paise
-                'currency': 'INR',
-                'accept_partial': False,
-                'description': 'Game winnings withdrawal',
-                'customer': {
-                    'name': current_user.user_data['username'],
-                    'contact': current_user.user_data.get('phone', ''),
-                    'email': current_user.user_data.get('email', '')
-                },
-                'notify': {
-                    'sms': True,
-                    'email': True
-                },
-                'reminder_enable': True,
-                'notes': {
-                    'user_id': current_user.id,
-                    'type': 'withdrawal',
-                    'account_number': request.form.get('account_number'),
-                    'ifsc_code': request.form.get('ifsc_code'),
-                    'account_holder': request.form.get('account_holder')
-                },
-                'callback_url': url_for('razorpay_withdraw_callback', _external=True),
-                'callback_method': 'get'
-            }
-
-            # Create payment link
-            payment_link = razorpay_client.payment_link.create(payment_data)
-            
             # Update user balance
             db.users.update_one(
                 {'_id': ObjectId(current_user.id)},
@@ -1080,18 +1082,26 @@ def razorpay_withdraw():
                     'account_number': request.form.get('account_number'),
                     'ifsc_code': request.form.get('ifsc_code'),
                     'account_holder': request.form.get('account_holder')
-                },
-                'razorpay_payment_link_id': payment_link['id']
+                }
             }
             db.transactions.insert_one(transaction)
             
+            # Add notification
+            notification = {
+                'user_id': ObjectId(current_user.id),
+                'type': 'withdrawal',
+                'message': f'Withdrawal request of ₹{amount:.2f} submitted. Admin will process it soon.',
+                'created_at': datetime.now(timezone.utc),
+                'read': False
+            }
+            db.notifications.insert_one(notification)
+            
             return jsonify({
-                'payment_link_id': payment_link['id'],
-                'payment_link_url': payment_link['short_url'],
-                'status': 'pending'
+                'status': 'success',
+                'message': 'Withdrawal request submitted successfully. Admin will process it soon.'
             })
         except Exception as e:
-            app.logger.error(f"Razorpay withdrawal error: {str(e)}")
+            app.logger.error(f"Withdrawal error: {str(e)}")
             return jsonify({'error': 'Withdrawal processing failed'}), 500
 
     return render_template('razorpay_withdraw.html')
@@ -1099,26 +1109,35 @@ def razorpay_withdraw():
 @app.route('/razorpay/withdraw/callback')
 def razorpay_withdraw_callback():
     try:
-        payment_link_id = request.args.get('payment_link_id')
-        payment_link_status = request.args.get('payment_link_status')
+        payout_id = request.args.get('payout_id')
+        payout_status = request.args.get('payout_status')
         
-        if payment_link_status == 'paid':
-            # Get transaction details
-            transaction = db.transactions.find_one({
-                'razorpay_payment_link_id': payment_link_id,
-                'status': 'pending'
-            })
+        # Get transaction details
+        transaction = db.transactions.find_one({
+            'razorpay_payout_id': payout_id
+        })
+        
+        if transaction:
+            # Update transaction status based on payout status
+            new_status = 'completed' if payout_status == 'processed' else 'failed'
+            db.transactions.update_one(
+                {'_id': transaction['_id']},
+                {'$set': {'status': new_status}}
+            )
             
-            if transaction:
-                # Update transaction status
-                db.transactions.update_one(
-                    {'_id': transaction['_id']},
-                    {'$set': {'status': 'completed'}}
-                )
-                
-                return redirect(url_for('wallet', withdrawal='success'))
+            # Add notification based on status
+            notification = {
+                'user_id': transaction['user_id'],
+                'type': 'withdrawal',
+                'message': f'Withdrawal of ₹{transaction["amount"]:.2f} has been {new_status}',
+                'created_at': datetime.now(timezone.utc),
+                'read': False
+            }
+            db.notifications.insert_one(notification)
+            
+            return redirect(url_for('wallet', withdrawal=new_status))
         
-        return redirect(url_for('wallet', withdrawal='failed'))
+        return redirect(url_for('wallet', withdrawal='error'))
     except Exception as e:
         app.logger.error(f"Withdrawal callback error: {str(e)}")
         return redirect(url_for('wallet', withdrawal='error'))
@@ -1155,6 +1174,88 @@ def wheel_bet():
     except Exception as e:
         app.logger.error(f"Error placing bet: {str(e)}")
         return jsonify({'error': 'Failed to place bet'}), 500
+
+@app.route('/manual_payment')
+@login_required
+def manual_payment():
+    return render_template('manual_payment.html')
+
+@app.route('/manual_deposit', methods=['GET', 'POST'])
+@login_required
+def manual_deposit():
+    if request.method == 'GET':
+        return render_template('manual_deposit.html')
+    
+    try:
+        amount = float(request.form.get('amount'))
+        if amount < 20 or amount > 1000:
+            flash('Invalid deposit amount. Must be between ₹20 and ₹1000')
+            return redirect(url_for('manual_payment'))
+        
+        # Create transaction record
+        transaction = {
+            'user_id': ObjectId(current_user.id),
+            'type': 'deposit',
+            'amount': amount,
+            'status': 'pending',
+            'created_at': datetime.now(timezone.utc),
+            'transaction_id': str(uuid.uuid4()),
+            'username': current_user.user_data['username']
+        }
+        
+        db.transactions.insert_one(transaction)
+        flash('Deposit request submitted successfully! Admin will verify and update your balance.')
+        return redirect(url_for('wallet'))
+    except Exception as e:
+        app.logger.error(f"Manual deposit error: {str(e)}")
+        flash('An error occurred. Please try again.')
+        return redirect(url_for('manual_payment'))
+
+@app.route('/manual_withdraw', methods=['GET', 'POST'])
+@login_required
+def manual_withdraw():
+    if request.method == 'GET':
+        return render_template('manual_withdraw.html')
+    
+    try:
+        amount = float(request.form.get('amount'))
+        if amount < 50 or amount > 500:
+            flash('Invalid withdrawal amount. Must be between ₹50 and ₹500')
+            return redirect(url_for('manual_payment'))
+        
+        if current_user.user_data['wallet_balance'] < amount:
+            flash('Insufficient balance')
+            return redirect(url_for('manual_payment'))
+        
+        # Create transaction record
+        transaction = {
+            'user_id': ObjectId(current_user.id),
+            'type': 'withdrawal',
+            'amount': amount,
+            'status': 'pending',
+            'created_at': datetime.now(timezone.utc),
+            'transaction_id': str(uuid.uuid4()),
+            'username': current_user.user_data['username'],
+            'bank_details': {
+                'account_number': request.form.get('bank_account'),
+                'ifsc_code': request.form.get('ifsc_code'),
+                'account_holder': request.form.get('account_holder')
+            }
+        }
+        
+        # Deduct amount from wallet immediately for withdrawal
+        db.users.update_one(
+            {'_id': ObjectId(current_user.id)},
+            {'$inc': {'user_data.wallet_balance': -amount}}
+        )
+        
+        db.transactions.insert_one(transaction)
+        flash('Withdrawal request submitted successfully! Admin will process your request.')
+        return redirect(url_for('wallet'))
+    except Exception as e:
+        app.logger.error(f"Manual withdrawal error: {str(e)}")
+        flash('An error occurred. Please try again.')
+        return redirect(url_for('manual_payment'))
 
 if __name__ == '__main__':
     try:

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="title">Manual Payment</h1>
+    
+    <div class="row">
+        <!-- Deposit Section -->
+        <div class="col-md-6 mb-4">
+            <div class="nes-container with-title">
+                <p class="title">Deposit Money</p>
+                <form method="POST" action="{{ url_for('manual_deposit') }}">
+                    <div class="nes-field">
+                        <label for="deposit_amount">Amount (₹20 - ₹1000)</label>
+                        <input type="number" class="nes-input" id="deposit_amount" name="amount" 
+                               min="20" max="1000" required>
+                    </div>
+                    <div class="nes-field">
+                        <label>Payment QR Code</label>
+                        <div class="text-center">
+                            <img src="{{ url_for('static', filename='images/payment_qr.jpg') }}" 
+                                 alt="Payment QR" class="img-fluid mb-2" style="max-width: 200px;">
+                        </div>
+                        <div class="nes-text is-primary">
+                            1. Scan QR and make payment<br>
+                            2. Enter amount and submit request<br>
+                            3. Admin will verify and update balance
+                        </div>
+                    </div>
+                    <button type="submit" class="nes-btn is-primary">Submit Deposit Request</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Withdrawal Section -->
+        <div class="col-md-6 mb-4">
+            <div class="nes-container with-title">
+                <p class="title">Withdraw Money</p>
+                <form method="POST" action="{{ url_for('manual_withdraw') }}">
+                    <div class="nes-field">
+                        <label for="withdrawal_amount">Amount (₹50 - ₹500)</label>
+                        <input type="number" class="nes-input" id="withdrawal_amount" name="amount" 
+                               min="50" max="500" required>
+                    </div>
+                    <div class="nes-field">
+                        <label for="bank_account">Bank Account Number</label>
+                        <input type="text" class="nes-input" id="bank_account" name="bank_account" required>
+                    </div>
+                    <div class="nes-field">
+                        <label for="ifsc_code">IFSC Code</label>
+                        <input type="text" class="nes-input" id="ifsc_code" name="ifsc_code" required>
+                    </div>
+                    <div class="nes-field">
+                        <label for="account_holder">Account Holder Name</label>
+                        <input type="text" class="nes-input" id="account_holder" name="account_holder" required>
+                    </div>
+                    <button type="submit" class="nes-btn is-warning">Submit Withdrawal Request</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.nes-container {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+}
+
+.nes-field {
+    margin-bottom: 1rem;
+}
+
+.nes-btn {
+    margin-top: 1rem;
+    width: 100%;
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+    
+    .col-md-6 {
+        margin-bottom: 2rem;
+    }
+}
+</style>
+{% endblock %} 

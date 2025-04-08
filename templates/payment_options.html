@@ -18,7 +18,7 @@
             </div>
             <div class="payment-actions">
                 <a href="{{ url_for('razorpay_deposit') }}" class="nes-btn is-primary">Deposit</a>
-                <a href="{{ url_for('razorpay_withdraw') }}" class="nes-btn is-warning">Withdraw</a>
+                <a href="{{ url_for('manual_withdraw') }}" class="nes-btn is-warning">Withdraw</a>
             </div>
         </div>
 
@@ -34,7 +34,8 @@
                 </ul>
             </div>
             <div class="payment-actions">
-                <a href="{{ url_for('wallet') }}" class="nes-btn is-primary">Go to Manual Payment</a>
+                <a href="{{ url_for('manual_deposit') }}" class="nes-btn is-primary">Deposit</a>
+                <a href="{{ url_for('manual_withdraw') }}" class="nes-btn is-warning">Withdraw</a>
             </div>
         </div>
     </div>

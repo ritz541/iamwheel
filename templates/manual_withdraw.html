@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="title">Manual Withdrawal</h1>
+    
+    <div class="nes-container with-title">
+        <p class="title">Withdraw Money</p>
+        <form method="POST" action="{{ url_for('manual_withdraw') }}">
+            <div class="nes-field">
+                <label for="withdrawal_amount">Amount (₹50 - ₹500)</label>
+                <input type="number" class="nes-input" id="withdrawal_amount" name="amount" 
+                       min="50" max="500" required>
+            </div>
+            <div class="nes-field">
+                <label for="bank_account">Bank Account Number</label>
+                <input type="text" class="nes-input" id="bank_account" name="bank_account" required>
+            </div>
+            <div class="nes-field">
+                <label for="ifsc_code">IFSC Code</label>
+                <input type="text" class="nes-input" id="ifsc_code" name="ifsc_code" required>
+            </div>
+            <div class="nes-field">
+                <label for="account_holder">Account Holder Name</label>
+                <input type="text" class="nes-input" id="account_holder" name="account_holder" required>
+            </div>
+            <button type="submit" class="nes-btn is-warning">Submit Withdrawal Request</button>
+        </form>
+    </div>
+</div>
+
+<style>
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.nes-container {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+}
+
+.nes-field {
+    margin-bottom: 1rem;
+}
+
+.nes-btn {
+    margin-top: 1rem;
+    width: 100%;
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+}
+</style>
+{% endblock %}
