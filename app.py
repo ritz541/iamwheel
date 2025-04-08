@@ -1031,19 +1031,35 @@ def razorpay_withdraw():
             if current_user.user_data['wallet_balance'] < amount:
                 return jsonify({'error': 'Insufficient balance'}), 400
 
-            # Create Razorpay payout
-            payout_data = {
-                'account_number': request.form.get('account_number'),
-                'fund_account_id': request.form.get('fund_account_id'),
+            # Create a payment link for withdrawal
+            payment_data = {
                 'amount': int(amount * 100),  # amount in paise
                 'currency': 'INR',
-                'mode': 'IMPS',
-                'purpose': 'refund',
-                'queue_if_low_balance': True,
-                'reference_id': f'withdraw_{current_user.id}_{int(time.time())}',
-                'narration': 'Game winnings withdrawal'
+                'accept_partial': False,
+                'description': 'Game winnings withdrawal',
+                'customer': {
+                    'name': current_user.user_data['username'],
+                    'contact': current_user.user_data.get('phone', ''),
+                    'email': current_user.user_data.get('email', '')
+                },
+                'notify': {
+                    'sms': True,
+                    'email': True
+                },
+                'reminder_enable': True,
+                'notes': {
+                    'user_id': current_user.id,
+                    'type': 'withdrawal',
+                    'account_number': request.form.get('account_number'),
+                    'ifsc_code': request.form.get('ifsc_code'),
+                    'account_holder': request.form.get('account_holder')
+                },
+                'callback_url': url_for('razorpay_withdraw_callback', _external=True),
+                'callback_method': 'get'
             }
-            payout = razorpay_client.payout.create(data=payout_data)
+
+            # Create payment link
+            payment_link = razorpay_client.payment_link.create(payment_data)
             
             # Update user balance
             db.users.update_one(
@@ -1056,7 +1072,7 @@ def razorpay_withdraw():
                 'user_id': ObjectId(current_user.id),
                 'type': 'withdrawal',
                 'amount': amount,
-                'status': 'completed',
+                'status': 'pending',
                 'created_at': datetime.now(timezone.utc),
                 'transaction_id': str(uuid.uuid4()),
                 'username': current_user.user_data['username'],
@@ -1065,13 +1081,14 @@ def razorpay_withdraw():
                     'ifsc_code': request.form.get('ifsc_code'),
                     'account_holder': request.form.get('account_holder')
                 },
-                'razorpay_payout_id': payout['id']
+                'razorpay_payment_link_id': payment_link['id']
             }
             db.transactions.insert_one(transaction)
             
             return jsonify({
-                'payout_id': payout['id'],
-                'status': payout['status']
+                'payment_link_id': payment_link['id'],
+                'payment_link_url': payment_link['short_url'],
+                'status': 'pending'
             })
         except Exception as e:
             app.logger.error(f"Razorpay withdrawal error: {str(e)}")
@@ -1079,56 +1096,32 @@ def razorpay_withdraw():
 
     return render_template('razorpay_withdraw.html')
 
-@app.route('/razorpay/webhook', methods=['POST'])
-def razorpay_webhook():
+@app.route('/razorpay/withdraw/callback')
+def razorpay_withdraw_callback():
     try:
-        # Verify webhook signature
-        signature = request.headers.get('X-Razorpay-Signature')
-        webhook_secret = app.config['RAZORPAY_WEBHOOK_SECRET']
-        razorpay_client.utility.verify_webhook_signature(
-            request.get_data().decode('utf-8'),
-            signature,
-            webhook_secret
-        )
-
-        payload = request.get_json()
-        event = payload['event']
+        payment_link_id = request.args.get('payment_link_id')
+        payment_link_status = request.args.get('payment_link_status')
         
-        if event == 'payment.captured':
-            # Handle successful payment
-            payment_id = payload['payload']['payment']['entity']['id']
-            order_id = payload['payload']['payment']['entity']['order_id']
-            amount = payload['payload']['payment']['entity']['amount'] / 100  # Convert to rupees
+        if payment_link_status == 'paid':
+            # Get transaction details
+            transaction = db.transactions.find_one({
+                'razorpay_payment_link_id': payment_link_id,
+                'status': 'pending'
+            })
             
-            # Get order details
-            order = razorpay_client.order.fetch(order_id)
-            user_id = order['notes']['user_id']
-            
-            # Update user balance
-            user = db.users.find_one({'_id': ObjectId(user_id)})
-            if user:
-                db.users.update_one(
-                    {'_id': ObjectId(user_id)},
-                    {'$inc': {'user_data.wallet_balance': amount}}
+            if transaction:
+                # Update transaction status
+                db.transactions.update_one(
+                    {'_id': transaction['_id']},
+                    {'$set': {'status': 'completed'}}
                 )
                 
-                # Log transaction
-                transaction = {
-                    'user_id': ObjectId(user_id),
-                    'type': 'deposit',
-                    'amount': amount,
-                    'status': 'completed',
-                    'created_at': datetime.now(timezone.utc),
-                    'transaction_id': str(uuid.uuid4()),
-                    'username': user['user_data']['username'],
-                    'razorpay_payment_id': payment_id
-                }
-                db.transactions.insert_one(transaction)
-                
-        return jsonify({'status': 'success'})
+                return redirect(url_for('wallet', withdrawal='success'))
+        
+        return redirect(url_for('wallet', withdrawal='failed'))
     except Exception as e:
-        app.logger.error(f"Razorpay webhook error: {str(e)}")
-        return jsonify({'error': 'Webhook processing failed'}), 500
+        app.logger.error(f"Withdrawal callback error: {str(e)}")
+        return redirect(url_for('wallet', withdrawal='error'))
 
 @app.route('/wheel/bet', methods=['POST'])
 @login_required
