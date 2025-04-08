@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="title">Payment Options</h1>
+    
+    <div class="payment-methods">
+        <!-- Razorpay Payment Card -->
+        <div class="nes-container with-title is-centered payment-card">
+            <p class="title">Razorpay Payment</p>
+            <div class="payment-details">
+                <p>Fast and secure payments using Razorpay</p>
+                <ul class="nes-list is-disc">
+                    <li>Instant processing</li>
+                    <li>Multiple payment methods</li>
+                    <li>Secure transactions</li>
+                </ul>
+            </div>
+            <div class="payment-actions">
+                <a href="{{ url_for('razorpay_deposit') }}" class="nes-btn is-primary">Deposit</a>
+                <a href="{{ url_for('razorpay_withdraw') }}" class="nes-btn is-warning">Withdraw</a>
+            </div>
+        </div>
+
+        <!-- Manual Payment Card -->
+        <div class="nes-container with-title is-centered payment-card">
+            <p class="title">Manual Payment</p>
+            <div class="payment-details">
+                <p>Traditional payment method with admin approval</p>
+                <ul class="nes-list is-disc">
+                    <li>Bank transfer</li>
+                    <li>UPI payments</li>
+                    <li>Admin verification</li>
+                </ul>
+            </div>
+            <div class="payment-actions">
+                <a href="{{ url_for('wallet') }}" class="nes-btn is-primary">Go to Manual Payment</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.payment-methods {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.payment-card {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.payment-details {
+    flex-grow: 1;
+}
+
+.payment-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+@media (max-width: 768px) {
+    .payment-methods {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %} 

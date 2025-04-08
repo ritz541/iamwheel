@@ -16,6 +16,7 @@ from functools import wraps
 from flask_session import Session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash
+import razorpay
 
 # Load environment variables
 load_dotenv()
@@ -37,7 +38,9 @@ app.config.update(
     SESSION_REFRESH_EACH_REQUEST=False,  # Reduce session writes
     PERMANENT_SESSION_LIFETIME=timedelta(days=1),  # Limit session lifetime
     JSON_SORT_KEYS=False,  # Reduce CPU usage on JSON responses
-    MAX_CONTENT_LENGTH=5 * 1024 * 1024  # Limit upload size to 5MB
+    MAX_CONTENT_LENGTH=5 * 1024 * 1024,  # Limit upload size to 5MB
+    RAZORPAY_KEY_ID='rzp_test_2GVU69GqDPjQSs',
+    RAZORPAY_KEY_SECRET='YBzsWdwHnjITQe19BpsWTpQD'
 )
 
 # Enable CORS
@@ -83,8 +86,13 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+# Initialize Razorpay client
+razorpay_client = razorpay.Client(
+    auth=(app.config['RAZORPAY_KEY_ID'], app.config['RAZORPAY_KEY_SECRET'])
+)
+
 # Rate limiting decorator - simplified version without Redis
-def rate_limit(limit=10, window=60):
+def rate_limit(limit=10, period=60):
     def decorator(f):
         # Simple in-memory rate limiting
         rate_limits = {}
@@ -96,7 +104,7 @@ def rate_limit(limit=10, window=60):
                 now = time.time()
                 
                 # Clean up old entries
-                rate_limits[key] = [t for t in rate_limits.get(key, []) if now - t < window]
+                rate_limits[key] = [t for t in rate_limits.get(key, []) if now - t < period]
                 
                 # Check if limit exceeded
                 if len(rate_limits.get(key, [])) >= limit:
@@ -170,7 +178,7 @@ class GameState:
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 @socketio.on('place_bet')
-@rate_limit(limit=5, window=10)  # Limit to 5 bets per 10 seconds
+@rate_limit(limit=5, period=10)  # Limit to 5 bets per 10 seconds
 def handle_bet(data):
     if not current_user.is_authenticated:
         return {'error': 'Authentication required'}
@@ -179,7 +187,7 @@ def handle_bet(data):
     emit('bet_placed', {'user': current_user.id, 'amount': data.get('amount')}, broadcast=True)
 
 @socketio.on('spin_wheel')
-@rate_limit(limit=1, window=5)  # Limit to 1 spin per 5 seconds
+@rate_limit(limit=1, period=5)  # Limit to 1 spin per 5 seconds
 def handle_spin(data):
     if not current_user.is_authenticated:
         return {'error': 'Authentication required'}
@@ -225,7 +233,7 @@ def handle_timer(data):
 # Example of rate-limited API endpoint
 @app.route('/api/place_bet', methods=['POST'])
 @login_required
-@rate_limit(limit=5, window=10)
+@rate_limit(limit=5, period=10)
 def place_bet():
     # Bet processing logic here
     return jsonify({'success': True})
@@ -968,6 +976,192 @@ def handle_user(action, user_id):
     return jsonify({'success': False, 'message': 'Invalid action'})
 
 game_state = GameState()
+
+@app.route('/payment-options')
+@login_required
+def payment_options():
+    return render_template('payment_options.html')
+
+@app.route('/razorpay/deposit', methods=['GET', 'POST'])
+@login_required
+@rate_limit()
+def razorpay_deposit():
+    if request.method == 'POST':
+        try:
+            amount = float(request.form.get('amount'))
+            if amount < 200 or amount > 100000:
+                return jsonify({'error': 'Amount must be between ₹200 and ₹100,000'}), 400
+
+            # Create Razorpay order with shorter receipt ID
+            timestamp = int(time.time())
+            receipt_id = f"dep_{current_user.id[:8]}_{timestamp}"
+            
+            order_data = {
+                'amount': int(amount * 100),  # amount in paise
+                'currency': 'INR',
+                'receipt': receipt_id,
+                'notes': {
+                    'user_id': current_user.id,
+                    'type': 'deposit'
+                }
+            }
+            order = razorpay_client.order.create(data=order_data)
+            
+            return jsonify({
+                'order_id': order['id'],
+                'amount': order['amount'],
+                'currency': order['currency']
+            })
+        except Exception as e:
+            app.logger.error(f"Razorpay deposit error: {str(e)}")
+            return jsonify({'error': 'Payment processing failed'}), 500
+
+    return render_template('razorpay_deposit.html')
+
+@app.route('/razorpay/withdraw', methods=['GET', 'POST'])
+@login_required
+@rate_limit()
+def razorpay_withdraw():
+    if request.method == 'POST':
+        try:
+            amount = float(request.form.get('amount'))
+            if amount < 200 or amount > 100000:
+                return jsonify({'error': 'Amount must be between ₹200 and ₹100,000'}), 400
+            
+            if current_user.user_data['wallet_balance'] < amount:
+                return jsonify({'error': 'Insufficient balance'}), 400
+
+            # Create Razorpay payout
+            payout_data = {
+                'account_number': request.form.get('account_number'),
+                'fund_account_id': request.form.get('fund_account_id'),
+                'amount': int(amount * 100),  # amount in paise
+                'currency': 'INR',
+                'mode': 'IMPS',
+                'purpose': 'refund',
+                'queue_if_low_balance': True,
+                'reference_id': f'withdraw_{current_user.id}_{int(time.time())}',
+                'narration': 'Game winnings withdrawal'
+            }
+            payout = razorpay_client.payout.create(data=payout_data)
+            
+            # Update user balance
+            db.users.update_one(
+                {'_id': ObjectId(current_user.id)},
+                {'$inc': {'user_data.wallet_balance': -amount}}
+            )
+            
+            # Log transaction
+            transaction = {
+                'user_id': ObjectId(current_user.id),
+                'type': 'withdrawal',
+                'amount': amount,
+                'status': 'completed',
+                'created_at': datetime.now(timezone.utc),
+                'transaction_id': str(uuid.uuid4()),
+                'username': current_user.user_data['username'],
+                'bank_details': {
+                    'account_number': request.form.get('account_number'),
+                    'ifsc_code': request.form.get('ifsc_code'),
+                    'account_holder': request.form.get('account_holder')
+                },
+                'razorpay_payout_id': payout['id']
+            }
+            db.transactions.insert_one(transaction)
+            
+            return jsonify({
+                'payout_id': payout['id'],
+                'status': payout['status']
+            })
+        except Exception as e:
+            app.logger.error(f"Razorpay withdrawal error: {str(e)}")
+            return jsonify({'error': 'Withdrawal processing failed'}), 500
+
+    return render_template('razorpay_withdraw.html')
+
+@app.route('/razorpay/webhook', methods=['POST'])
+def razorpay_webhook():
+    try:
+        # Verify webhook signature
+        signature = request.headers.get('X-Razorpay-Signature')
+        webhook_secret = app.config['RAZORPAY_WEBHOOK_SECRET']
+        razorpay_client.utility.verify_webhook_signature(
+            request.get_data().decode('utf-8'),
+            signature,
+            webhook_secret
+        )
+
+        payload = request.get_json()
+        event = payload['event']
+        
+        if event == 'payment.captured':
+            # Handle successful payment
+            payment_id = payload['payload']['payment']['entity']['id']
+            order_id = payload['payload']['payment']['entity']['order_id']
+            amount = payload['payload']['payment']['entity']['amount'] / 100  # Convert to rupees
+            
+            # Get order details
+            order = razorpay_client.order.fetch(order_id)
+            user_id = order['notes']['user_id']
+            
+            # Update user balance
+            user = db.users.find_one({'_id': ObjectId(user_id)})
+            if user:
+                db.users.update_one(
+                    {'_id': ObjectId(user_id)},
+                    {'$inc': {'user_data.wallet_balance': amount}}
+                )
+                
+                # Log transaction
+                transaction = {
+                    'user_id': ObjectId(user_id),
+                    'type': 'deposit',
+                    'amount': amount,
+                    'status': 'completed',
+                    'created_at': datetime.now(timezone.utc),
+                    'transaction_id': str(uuid.uuid4()),
+                    'username': user['user_data']['username'],
+                    'razorpay_payment_id': payment_id
+                }
+                db.transactions.insert_one(transaction)
+                
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        app.logger.error(f"Razorpay webhook error: {str(e)}")
+        return jsonify({'error': 'Webhook processing failed'}), 500
+
+@app.route('/wheel/bet', methods=['POST'])
+@login_required
+@rate_limit(limit=5, period=10)  # Limit to 5 bets per 10 seconds
+def wheel_bet():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        amount = float(data.get('amount', 0))
+        if amount <= 0:
+            return jsonify({'error': 'Invalid bet amount'}), 400
+
+        if amount > current_user.user_data['wallet_balance']:
+            return jsonify({'error': 'Insufficient balance'}), 400
+
+        # Deduct amount from user's balance
+        db.users.update_one(
+            {'_id': ObjectId(current_user.id)},
+            {'$inc': {'user_data.wallet_balance': -amount}}
+        )
+
+        # Add bet to game state
+        game_state.add_bet(current_user.id, amount)
+
+        return jsonify({
+            'message': 'Bet placed successfully',
+            'balance': current_user.user_data['wallet_balance'] - amount
+        })
+    except Exception as e:
+        app.logger.error(f"Error placing bet: {str(e)}")
+        return jsonify({'error': 'Failed to place bet'}), 500
 
 if __name__ == '__main__':
     try:

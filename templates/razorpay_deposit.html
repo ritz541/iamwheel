@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="title">Razorpay Deposit</h1>
+    
+    <div class="nes-container with-title is-centered">
+        <p class="title">Deposit Amount</p>
+        <form id="depositForm" class="nes-field">
+            <div class="nes-field">
+                <label for="amount">Amount (₹)</label>
+                <input type="number" id="amount" name="amount" class="nes-input" 
+                       min="200" max="100000" step="100" required>
+                <small class="nes-text is-error" id="amountError"></small>
+            </div>
+            
+            <button type="submit" class="nes-btn is-primary" id="payButton">
+                Proceed to Pay
+            </button>
+        </form>
+    </div>
+</div>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+document.getElementById('depositForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const amount = parseFloat(document.getElementById('amount').value);
+    if (amount < 200 || amount > 100000) {
+        document.getElementById('amountError').textContent = 'Amount must be between ₹200 and ₹100,000';
+        return;
+    }
+    
+    try {
+        const response = await fetch('/razorpay/deposit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `amount=${amount}`
+        });
+        
+        const data = await response.json();
+        if (response.ok) {
+            const options = {
+                key: '{{ config.RAZORPAY_KEY_ID }}',
+                amount: data.amount,
+                currency: data.currency,
+                name: 'Game Wallet',
+                description: 'Deposit to Game Wallet',
+                order_id: data.order_id,
+                handler: function(response) {
+                    window.location.href = '/wallet?payment=success';
+                },
+                prefill: {
+                    name: '{{ current_user.user_data.username }}',
+                    email: '{{ current_user.user_data.email }}'
+                },
+                theme: {
+                    color: '#0f4c75'
+                }
+            };
+            
+            const rzp = new Razorpay(options);
+            rzp.open();
+        } else {
+            document.getElementById('amountError').textContent = data.error;
+        }
+    } catch (error) {
+        document.getElementById('amountError').textContent = 'An error occurred. Please try again.';
+    }
+});
+</script>
+
+<style>
+.container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.nes-container {
+    margin-top: 2rem;
+}
+
+.nes-field {
+    margin-bottom: 1rem;
+}
+
+#payButton {
+    margin-top: 1rem;
+    width: 100%;
+}
+</style>
+{% endblock %} 
