@@ -4,46 +4,76 @@
 
 {% block content %}
 <style>
+    /* Mobile-first responsive styles */
     .profile-header {
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 1.5rem;
-        margin-bottom: 2rem;
+        text-align: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
     }
     
     .profile-avatar {
-        width: 100px;
-        height: 100px;
+        width: 80px;
+        height: 80px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 3rem;
+        font-size: 2.5rem;
         background-color: #f0f0f0;
         border: 4px solid var(--nes-text);
+        margin: 0 auto;
     }
     
     .profile-stats {
         display: flex;
-        gap: 1rem;
-        flex-wrap: wrap;
+        flex-direction: column;
+        gap: 0.75rem;
         margin-bottom: 1.5rem;
     }
     
     .stat-card {
-        flex: 1;
-        min-width: 150px;
-        padding: 1rem;
+        width: 100%;
+        padding: 0.75rem;
         text-align: center;
         border: 4px solid var(--nes-text);
     }
     
-    .tab-content {
+    .stat-card h4 {
+        font-size: 0.9rem;
+    }
+    
+    .stat-card h2 {
+        font-size: 1.2rem;
+    }
+    
+    /* Bootstrap 5 already handles tab display, removing custom override */
+    /* .tab-content {
         display: none;
     }
     
     .tab-content.active {
         display: block;
+    } */
+    
+    .nav-tabs {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        white-space: nowrap;
+        width: 100%;
+    }
+    
+    .nav-tabs .nav-item {
+        flex: 1;
+        min-width: auto;
+    }
+    
+    .nav-tabs .nav-link {
+        padding: 0.5rem;
+        font-size: 0.8rem;
     }
     
     .nav-tabs .nav-link.active {
@@ -54,15 +84,130 @@
     .transaction-filter {
         margin-bottom: 1rem;
         display: flex;
+        flex-wrap: wrap;
         gap: 0.5rem;
+        justify-content: center;
+    }
+    
+    .filter-btn {
+        font-size: 0.7rem;
+        padding: 0.3rem 0.5rem;
+        white-space: nowrap;
     }
     
     .badge {
-        padding: 0.5rem;
+        padding: 0.4rem;
         border-radius: 4px;
+        font-size: 0.7rem;
+    }
+    
+    /* Table responsive styles */
+    .table th, .table td {
+        padding: 0.5rem;
+        font-size: 0.8rem;
+    }
+    
+    .small-text {
+        font-size: 0.7rem;
+    }
+    
+    /* Form responsive styles */
+    .form-control {
+        font-size: 0.9rem;
+        padding: 0.4rem;
+    }
+    
+    .form-label {
+        font-size: 0.9rem;
+    }
+    
+    .text-muted {
+        font-size: 0.7rem;
+    }
+    
+    /* Tablet and desktop styles */
+    @media (min-width: 768px) {
+        .container.my-4 {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        
+        .form-control {
+            font-size: 1rem;
+            padding: 0.5rem;
+        }
+        
+        .form-label {
+            font-size: 1rem;
+        }
+        
+        .text-muted {
+            font-size: 0.8rem;
+        }
+        
+        .small-text {
+            font-size: 0.9rem;
+        }
+        .profile-header {
+            flex-direction: row;
+            text-align: left;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .profile-avatar {
+            width: 100px;
+            height: 100px;
+            font-size: 3rem;
+            margin: 0;
+        }
+        
+        .profile-stats {
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .stat-card {
+            flex: 1;
+            min-width: 150px;
+            padding: 1rem;
+        }
+        
+        .stat-card h4 {
+            font-size: 1rem;
+        }
+        
+        .stat-card h2 {
+            font-size: 1.5rem;
+        }
+        
+        .nav-tabs .nav-link {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+        }
+        
+        .transaction-filter {
+            justify-content: flex-start;
+        }
+        
+        .filter-btn {
+            font-size: 0.8rem;
+            padding: 0.4rem 0.7rem;
+        }
+        
+        .table th, .table td {
+            padding: 0.75rem;
+            font-size: 1rem;
+        }
+        
+        .badge {
+            padding: 0.5rem;
+            font-size: 0.8rem;
+        }
     }
 </style>
-<div class="container my-4">
+<div class="container my-4 px-2">
     <!-- Profile Header -->
     <div class="nes-container is-rounded">
         <div class="profile-header">
@@ -72,7 +217,7 @@
             <div>
                 <h2>{{ current_user.user_data.username }}</h2>
                 <p>Member since: {{ current_user.created_at.strftime('%B %d, %Y') if current_user.created_at else 'N/A' }}</p>
-                <p>Phone: {{ current_user.user_data.phone if current_user.user_data.phone else 'Not provided' }}</p>
+                <p>Phone: {{ current_user.phone if current_user.phone else 'Not provided' }}</p>
             </div>
         </div>
     </div>
@@ -194,7 +339,7 @@
                             <tbody>
                                 {% for transaction in transactions %}
                                 <tr class="transaction-row" data-type="{{ transaction.type }}">
-                                    <td>{{ transaction.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td class="small-text">{{ transaction.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                                     <td>{{ transaction.type }}</td>
                                     <td>₹{{ transaction.amount }}</td>
                                     <td>
@@ -270,7 +415,7 @@
                         </div>
                         <div class="mb-3">
                             <label for="phone" class="form-label">Phone Number</label>
-                            <input type="tel" class="form-control" id="phone" value="{{ current_user.user_data.phone }}" readonly>
+                            <input type="tel" class="form-control" id="phone" value="{{ current_user.phone }}" readonly>
                             <small class="text-muted">Phone number cannot be changed</small>
                         </div>
                         <div class="mb-3">
@@ -325,6 +470,30 @@
 <script>
     // Tab functionality
     document.addEventListener('DOMContentLoaded', function() {
+        // Initialize Bootstrap tabs
+        var tabElms = document.querySelectorAll('button[data-bs-toggle="tab"]');
+        tabElms.forEach(function(tabElm) {
+            tabElm.addEventListener('click', function(event) {
+                event.preventDefault();
+                var targetSelector = this.getAttribute('data-bs-target');
+                var targetTab = document.querySelector(targetSelector);
+                
+                // Hide all tabs
+                document.querySelectorAll('.tab-pane').forEach(function(tab) {
+                    tab.classList.remove('show', 'active');
+                });
+                
+                // Show the selected tab
+                targetTab.classList.add('show', 'active');
+                
+                // Update active state on tab buttons
+                document.querySelectorAll('.nav-link').forEach(function(navLink) {
+                    navLink.classList.remove('active');
+                });
+                this.classList.add('active');
+            });
+        });
+        
         // Create and append the emoji-picker element
         const picker = document.createElement('emoji-picker');
         document.body.appendChild(picker);
@@ -408,6 +577,7 @@
     gap: 10px;
     align-items: center;
     position: relative;
+    flex-wrap: wrap;
 }
 
 #selected_emoji {
@@ -416,12 +586,32 @@
     font-size: 24px;
 }
 
+#emoji-button {
+    margin-top: 5px;
+}
+
 emoji-picker {
     --background: #fff;
     --border-color: #333;
     --category-emoji-size: 1.25rem;
     --emoji-size: 1.5rem;
     --emoji-padding: 0.5rem;
+    width: 100%;
+    max-width: 320px;
+}
+
+@media (min-width: 768px) {
+    .emoji-selector {
+        flex-wrap: nowrap;
+    }
+    
+    #emoji-button {
+        margin-top: 0;
+    }
+    
+    emoji-picker {
+        width: auto;
+    }
 }
 </style>
 {% endblock %}

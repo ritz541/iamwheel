@@ -331,6 +331,7 @@ class User(UserMixin):
             self.game_history = user.get('game_history', [])
             self.created_at = user.get('created_at')
             self.last_active = user.get('last_active')
+            self.phone = user.get('phone')  # Load phone number from user document
         else:
             self.user_data = {}
             self.is_admin = False
@@ -338,6 +339,7 @@ class User(UserMixin):
             self.game_history = []
             self.created_at = None
             self.last_active = None
+            self.phone = None
 
     @property
     def is_active(self):
