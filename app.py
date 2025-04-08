@@ -637,6 +637,65 @@ def register():
 
     return render_template('register.html')
 
+@app.route('/leaderboard')
+def leaderboard():
+    # Fetch top players based on wins and earnings from games collection
+    pipeline = [
+        # Match only completed games
+        {'$match': {'status': 'completed'}},
+        # Group by winner to calculate statistics
+        {'$group': {
+            '_id': '$winner',
+            'username': {'$first': '$winner'},
+            'total_wins': {'$sum': 1},
+            'total_earnings': {'$sum': '$winner_prize'},
+            'games': {'$push': '$$ROOT'}
+        }},
+        # Add total games played (including non-wins)
+        {'$lookup': {
+            'from': 'games',
+            'let': {'player_name': '$username'},
+            'pipeline': [
+                {'$match': {
+                    '$expr': {'$in': ['$$player_name', {'$map': {
+                        'input': '$players',
+                        'as': 'player',
+                        'in': '$$player.username'
+                    }}]},
+                    'status': 'completed'
+                }}
+            ],
+            'as': 'all_games'
+        }},
+        {'$addFields': {
+            'total_games': {'$size': '$all_games'}
+        }},
+        # Calculate win rate
+        {'$addFields': {
+            'win_rate': {
+                '$multiply': [
+                    {'$divide': ['$total_wins', {'$max': ['$total_games', 1]}]},
+                    100
+                ]
+            }
+        }},
+        # Sort by total wins and earnings
+        {'$sort': {'total_wins': -1, 'total_earnings': -1}},
+        {'$limit': 10},
+        # Project final fields
+        {'$project': {
+            '_id': 0,
+            'username': 1,
+            'total_wins': 1,
+            'total_games': 1,
+            'total_earnings': 1,
+            'win_rate': {'$round': ['$win_rate', 2]}
+        }}
+    ]
+    
+    top_players = list(db.games.aggregate(pipeline))
+    return render_template('leaderboard.html', players=top_players)
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:

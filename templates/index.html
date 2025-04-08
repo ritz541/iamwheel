@@ -56,8 +56,10 @@
 
         {% if current_user.is_authenticated %}
             <p>Ready to try your luck?</p>
-            <a href="{{ url_for('select_game') }}" class="btn btn-primary btn-lg px-4 gap-3">Play Now <i class="bi bi-arrow-right"></i></a>
+            <a href="{{ url_for('select_game') }}" class="btn btn-primary btn-lg">Play Now</a>
             <a href="{{ url_for('wallet') }}" class="btn btn-secondary btn-lg px-4">Profile</a>
+            <a href="{{ url_for('leaderboard') }}" class="btn btn-info btn-lg">Leaderboard</a>
+
         {% else %}
             <p>Join the fun! Log in or create an account to start playing.</p>
             <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mt-4">

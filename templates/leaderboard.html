@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Leaderboard - Paiso{% endblock %}
+
+{% block content %}
+<style>
+    .leaderboard-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    .leaderboard-card {
+        border: 4px solid var(--nes-text);
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .trophy-icon {
+        font-size: 2rem;
+        margin-right: 0.5rem;
+    }
+    
+    .player-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    .profile-emoji {
+        font-size: 1.5rem;
+    }
+    
+    .achievement-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+    }
+    
+    @media (max-width: 768px) {
+        .trophy-icon {
+            font-size: 1.5rem;
+        }
+        
+        .profile-emoji {
+            font-size: 1.2rem;
+        }
+        
+        .achievement-badge {
+            padding: 0.3rem 0.7rem;
+            font-size: 0.8rem;
+        }
+    }
+</style>
+
+<div class="container my-4">
+    <div class="leaderboard-header">
+        <h1 class="display-4">Paiso Leaderboard</h1>
+        <p class="lead">Top 10 Players</p>
+    </div>
+    
+    <div class="leaderboard-card nes-container">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>Total Wins</th>
+                        <th>Total Winnings</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for player in players[:10] %}
+                    <tr>
+                        <td>
+                            {% if loop.index == 1 %}
+                            <a href="#" class="nes-badge"><span class="is-warning">#1</span></a>
+                            {% elif loop.index == 2 %}
+                            <a href="#" class="nes-badge"><span class="is-primary">#2</span></a>
+                            {% elif loop.index == 3 %}
+                            <a href="#" class="nes-badge"><span class="is-error">#3</span></a>
+                            {% else %}
+                            {{ loop.index }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="player-info">
+                                <span class="profile-emoji">{{ player.emoji }}</span>
+                                {{ player.username }}
+                            </div>
+                        </td>
+                        <td>{{ player.total_wins if player.total_wins is not none else 0 }}</td>
+                        <td>₹{{ '{:,.2f}'.format(player.total_earnings|float) if player.total_earnings is not none else '0.00' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
