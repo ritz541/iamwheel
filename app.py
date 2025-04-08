@@ -1116,80 +1116,12 @@ def razorpay_withdraw_callback():
                     {'$set': {'status': 'completed'}}
                 )
                 
-                # Create notifications collection if it doesn't exist
-                if 'notifications' not in db.list_collection_names():
-                    db.create_collection('notifications')
-                
-                # Add notification for successful withdrawal
-                notification = {
-                    'user_id': transaction['user_id'],
-                    'type': 'withdrawal',
-                    'message': f'Withdrawal of ₹{transaction["amount"]} completed successfully',
-                    'created_at': datetime.now(timezone.utc),
-                    'read': False
-                }
-                db.notifications.insert_one(notification)
-                
                 return redirect(url_for('wallet', withdrawal='success'))
         
         return redirect(url_for('wallet', withdrawal='failed'))
     except Exception as e:
         app.logger.error(f"Withdrawal callback error: {str(e)}")
         return redirect(url_for('wallet', withdrawal='error'))
-
-@app.route('/razorpay/deposit/callback')
-def razorpay_deposit_callback():
-    try:
-        payment_id = request.args.get('razorpay_payment_id')
-        order_id = request.args.get('razorpay_order_id')
-        
-        # Verify payment
-        payment = razorpay_client.payment.fetch(payment_id)
-        if payment['status'] == 'captured':
-            # Get order details
-            order = razorpay_client.order.fetch(order_id)
-            user_id = order['notes']['user_id']
-            amount = payment['amount'] / 100  # Convert to rupees
-            
-            # Update user balance
-            db.users.update_one(
-                {'_id': ObjectId(user_id)},
-                {'$inc': {'user_data.wallet_balance': amount}}
-            )
-            
-            # Log transaction
-            transaction = {
-                'user_id': ObjectId(user_id),
-                'type': 'deposit',
-                'amount': amount,
-                'status': 'completed',
-                'created_at': datetime.now(timezone.utc),
-                'transaction_id': str(uuid.uuid4()),
-                'username': current_user.user_data['username'],
-                'razorpay_payment_id': payment_id
-            }
-            db.transactions.insert_one(transaction)
-            
-            # Create notifications collection if it doesn't exist
-            if 'notifications' not in db.list_collection_names():
-                db.create_collection('notifications')
-            
-            # Add notification for successful deposit
-            notification = {
-                'user_id': ObjectId(user_id),
-                'type': 'deposit',
-                'message': f'Deposit of ₹{amount} completed successfully',
-                'created_at': datetime.now(timezone.utc),
-                'read': False
-            }
-            db.notifications.insert_one(notification)
-            
-            return redirect(url_for('wallet', deposit='success'))
-        
-        return redirect(url_for('wallet', deposit='failed'))
-    except Exception as e:
-        app.logger.error(f"Deposit callback error: {str(e)}")
-        return redirect(url_for('wallet', deposit='error'))
 
 @app.route('/wheel/bet', methods=['POST'])
 @login_required
@@ -1223,11 +1155,6 @@ def wheel_bet():
     except Exception as e:
         app.logger.error(f"Error placing bet: {str(e)}")
         return jsonify({'error': 'Failed to place bet'}), 500
-
-@app.route('/manual_payment')
-@login_required
-def manual_payment():
-    return render_template('manual_payment.html')
 
 if __name__ == '__main__':
     try:

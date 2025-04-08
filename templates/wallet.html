@@ -2,132 +2,115 @@
 
 {% block content %}
 <div class="container">
-    <h1 class="title">Wallet</h1>
-    
-    <!-- Balance Display -->
-    <div class="nes-container with-title is-centered balance-container">
-        <p class="title">Current Balance</p>
-        <h2 class="balance-amount">₹{{ current_user.user_data.wallet_balance }}</h2>
-    </div>
-
-    <!-- Payment Options -->
-    <div class="payment-options">
-        <h2 class="subtitle">Choose Payment Method</h2>
-        
-        <div class="payment-cards">
-
-            <!-- Razorpay Payment Card -->
-            <div class="nes-container payment-card">
-                <h3>Razorpay Payment</h3>
-                <p>Instant payment processing with secure Razorpay integration.</p>
-                <ul class="payment-features">
-                    <li>Instant processing</li>
-                    <li>Multiple payment methods</li>
-                    <li>Secure transactions</li>
-                </ul>
-                <a href="/razorpay/deposit" class="nes-btn is-primary">Proceed with Razorpay</a>
+    <div class="row">
+        <!-- Wallet Balance Card -->
+        <div class="col-md-12 mb-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h3>Wallet Balance</h3>
+                    <h2 class="text-primary">₹{{ current_user.user_data.wallet_balance }}</h2>
+                </div>
             </div>
+        </div>
 
-            <!-- Manual Payment Card -->
-            <div class="nes-container payment-card">
-                <h3>Manual Payment</h3>
-                <p>Make a direct bank transfer and share the payment details with our support team.</p>
-                <ul class="payment-features">
-                    <li>Direct bank transfer</li>
-                    <li>24/7 support</li>
-                    <li>Processing time: 1-2 hours</li>
-                </ul>
-                <a href="/manual_payment" class="nes-btn is-primary">Proceed with Manual Payment</a>
+        <!-- Deposit Section -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Deposit Money</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('request_deposit') }}">
+                        <div class="mb-3">
+                            <label for="deposit_amount" class="form-label">Amount (₹20 - ₹1000)</label>
+                            <input type="number" class="form-control" id="deposit_amount" name="amount" 
+                                   min="20" max="1000" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Payment QR Code</label>
+                            <div class="text-center">
+                                <img src="{{ url_for('static', filename='images/payment_qr.jpg') }}" 
+                                     alt="Payment QR" class="img-fluid mb-2" style="max-width: 200px;">
+                            </div>
+                            <div class="alert alert-info">
+                                1. Scan QR and make payment
+                                2. Enter amount and submit request
+                                3. Admin will verify and update balance
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Submit Deposit Request</button>
+                    </form>
+                </div>
             </div>
+        </div>
 
-            
+        <!-- Withdrawal Section -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Withdraw Money</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('request_withdrawal') }}">
+                        <div class="mb-3">
+                            <label for="withdrawal_amount" class="form-label">Amount (₹50 - ₹500)</label>
+                            <input type="number" class="form-control" id="withdrawal_amount" name="amount" 
+                                   min="50" max="500" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="bank_account" class="form-label">Bank Account Number</label>
+                            <input type="text" class="form-control" id="bank_account" name="bank_account" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="ifsc_code" class="form-label">IFSC Code</label>
+                            <input type="text" class="form-control" id="ifsc_code" name="ifsc_code" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="account_holder" class="form-label">Account Holder Name</label>
+                            <input type="text" class="form-control" id="account_holder" name="account_holder" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Submit Withdrawal Request</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transaction History -->
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Transaction History</h4>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for transaction in transactions %}
+                                <tr>
+                                    <td>{{ transaction.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>{{ transaction.type }}</td>
+                                    <td>₹{{ transaction.amount }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ transaction.status_color }}">
+                                            {{ transaction.status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
-
-<style>
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem;
-}
-
-.balance-container {
-    margin-bottom: 3rem;
-    padding: 2rem;
-}
-
-.balance-amount {
-    font-size: 3rem;
-    color: #0f4c75;
-    margin: 1rem 0;
-}
-
-.payment-options {
-    margin-top: 2rem;
-}
-
-.subtitle {
-    text-align: center;
-    margin-bottom: 2rem;
-    color: #0f4c75;
-}
-
-.payment-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
-    margin-top: 2rem;
-}
-
-.payment-card {
-    padding: 2rem;
-    text-align: center;
-    transition: transform 0.3s ease;
-}
-
-.payment-card:hover {
-    transform: translateY(-5px);
-}
-
-.payment-card h3 {
-    color: #0f4c75;
-    margin-bottom: 1rem;
-}
-
-.payment-features {
-    list-style: none;
-    padding: 0;
-    margin: 1.5rem 0;
-    text-align: left;
-}
-
-.payment-features li {
-    margin: 0.5rem 0;
-    padding-left: 1.5rem;
-    position: relative;
-}
-
-.payment-features li:before {
-    content: "✓";
-    position: absolute;
-    left: 0;
-    color: #0f4c75;
-}
-
-.nes-btn {
-    margin-top: 1rem;
-    width: 100%;
-}
-
-@media (max-width: 768px) {
-    .payment-cards {
-        grid-template-columns: 1fr;
-    }
-    
-    .container {
-        padding: 1rem;
-    }
-}
-</style>
 {% endblock %}

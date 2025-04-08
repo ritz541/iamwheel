@@ -51,7 +51,7 @@ document.getElementById('depositForm').addEventListener('submit', async (e) => {
                 description: 'Deposit to Game Wallet',
                 order_id: data.order_id,
                 handler: function(response) {
-                    window.location.href = `/razorpay/deposit/callback?razorpay_payment_id=${response.razorpay_payment_id}&razorpay_order_id=${response.razorpay_order_id}`;
+                    window.location.href = '/wallet?payment=success';
                 },
                 prefill: {
                     name: '{{ current_user.user_data.username }}',
