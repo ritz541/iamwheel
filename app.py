@@ -715,7 +715,28 @@ def wallet():
         else:
             transaction['status_color'] = 'danger'
     
-    return render_template('wallet.html', transactions=transactions)
+    # Get user's game history directly from games collection
+    game_history = []
+    games = db.games.find({
+        'players': {
+            '$elemMatch': {
+                'id': str(current_user.id)
+            }
+        }
+    }).sort('created_at', -1)
+
+    for game in games:
+        is_winner = game['winner'] == current_user.user_data['username']
+        game_history.append({
+            'date': game['created_at'],
+            'game_type': 'Wheel Game',
+            'won': is_winner,
+            'amount': game['winner_prize'] if is_winner else -100,  # -100 for entry fee if lost
+            'total_pool': game['total_pool'],
+            'platform_fee': game['platform_fee']
+        })
+    
+    return render_template('wallet.html', transactions=transactions, game_history=game_history)
 
 @app.route('/request_deposit', methods=['POST'])
 @login_required

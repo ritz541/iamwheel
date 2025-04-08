@@ -363,7 +363,7 @@
                     <h4>Game History</h4>
                 </div>
                 <div class="card-body">
-                    {% if current_user.game_history %}
+                    {% if game_history %}
                     <div class="table-responsive">
                         <table class="table">
                             <thead>
@@ -372,10 +372,12 @@
                                     <th>Game</th>
                                     <th>Result</th>
                                     <th>Amount</th>
+                                    <th>Total Pool</th>
+                                    <th>Platform Fee</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for game in current_user.game_history %}
+                                {% for game in game_history %}
                                 <tr>
                                     <td>{{ game.date.strftime('%Y-%m-%d %H:%M') if game.date else 'N/A' }}</td>
                                     <td>{{ game.game_type }}</td>
@@ -385,6 +387,8 @@
                                         </span>
                                     </td>
                                     <td>₹{{ game.amount }}</td>
+                                    <td>₹{{ game.total_pool }}</td>
+                                    <td>₹{{ game.platform_fee }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
