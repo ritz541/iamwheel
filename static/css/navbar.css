@@ -10,9 +10,10 @@
 .navbar {
     background: var(--nav-bg) !important;
     padding: 1rem;
-    border: none !important;
+    border: 4px solid #000 !important;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(10px);
+    margin-bottom: 1rem;
 }
 
 .navbar-brand {
@@ -21,6 +22,8 @@
     padding: 0.5rem 1rem;
     transition: var(--nav-transition);
     text-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+    border: 2px solid white;
+    border-radius: 4px;
 }
 
 .navbar-brand:hover {

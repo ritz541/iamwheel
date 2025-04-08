@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}Welcome - Paiso{% endblock %}
+{% block title %}Welcome to Paiso - Your Gaming Platform{% endblock %}
+
+{% block meta_description %}Join our trusted gaming platform. Experience a safe, secure, and entertaining gaming experience with Paiso!{% endblock %}
 
 {% block content %}
 <style>
@@ -21,12 +23,35 @@
 </style>
 
 <div class="container my-5">
-    <div class="p-5 text-center rounded-3 hero-section">
+    <div class="p-5 text-center rounded-3 hero-section" itemscope itemtype="http://schema.org/WebSite">
         <img src="{{ url_for('static', filename='images/girl.gif') }}" alt="girl with money"
              class="mb-3 interactive-icon">
         
-        <h1 class="display-4">Welcome to the Paiso!</h1>
-        <p class="lead col-lg-8 mx-auto">Spin the wheel, test your luck, and win big! Experience the thrill of the game.</p>
+        <h1 class="display-4" itemprop="name">Welcome to Paiso - Your Gaming Platform!</h1>
+        <p class="lead col-lg-8 mx-auto" itemprop="description">Join our growing gaming platform. We're currently working on exciting new games and features to bring you the best gaming experience possible!</p>
+        <div class="features-section my-4">
+            <h2 class="h4 mb-3">Why Choose Paiso?</h2>
+            <div class="row g-4 justify-content-center">
+                <div class="col-md-4">
+                    <div class="feature-item">
+                        <h3 class="h5">Secure Gaming</h3>
+                        <p>Play with confidence on our safe and encrypted platform</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-item">
+                        <h3 class="h5">Instant Rewards</h3>
+                        <p>Quick and hassle-free withdrawals to your account</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-item">
+                        <h3 class="h5">24/7 Support</h3>
+                        <p>Round-the-clock assistance for all your gaming needs</p>
+                    </div>
+                </div>
+            </div>
+        </div>
         <hr class="my-4" style="border-top: 2px solid black;">
 
         {% if current_user.is_authenticated %}
