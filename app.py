@@ -1224,6 +1224,11 @@ def wheel_bet():
         app.logger.error(f"Error placing bet: {str(e)}")
         return jsonify({'error': 'Failed to place bet'}), 500
 
+@app.route('/manual_payment')
+@login_required
+def manual_payment():
+    return render_template('manual_payment.html')
+
 if __name__ == '__main__':
     try:
         socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
