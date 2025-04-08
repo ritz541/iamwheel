@@ -12,7 +12,6 @@ import threading
 import time
 import uuid
 import json
-import redis
 from functools import wraps
 from flask_session import Session
 from flask_cors import CORS
@@ -23,9 +22,6 @@ load_dotenv()
 
 # Access the variables
 SECRET_KEY = os.getenv('SECRET_KEY')
-REDIS_HOST = os.getenv('REDIS_HOST')
-REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))  # Default to 6379 if not set
-REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
 MONGO_URI = os.getenv('MONGO_URI')
 
 # Flask setup with optimized settings
@@ -34,7 +30,7 @@ app.config.update(
     DEBUG=False,
     ENV='production',
     SECRET_KEY=os.getenv('SECRET_KEY', 'your-secret-key'),
-    SESSION_TYPE='filesystem',  # Fallback to filesystem if Redis is not available
+    SESSION_TYPE='filesystem',  # Use filesystem for sessions
     SESSION_COOKIE_SECURE=True,  # Only send cookies over HTTPS
     SESSION_COOKIE_HTTPONLY=True,  # Prevent JavaScript access to session cookie
     SESSION_COOKIE_SAMESITE='Lax',  # CSRF protection
@@ -43,48 +39,6 @@ app.config.update(
     JSON_SORT_KEYS=False,  # Reduce CPU usage on JSON responses
     MAX_CONTENT_LENGTH=5 * 1024 * 1024  # Limit upload size to 5MB
 )
-
-# Redis connection with optimized settings
-try:
-    redis_pool = redis.ConnectionPool(
-        host=REDIS_HOST,
-        port=REDIS_PORT,
-        password=REDIS_PASSWORD,
-        max_connections=10,  # Limit max connections
-        socket_timeout=2,
-        socket_connect_timeout=2,
-        retry_on_timeout=True,
-        health_check_interval=30
-    )
-    
-    # Main Redis client for sessions
-    redis_client = redis.Redis(
-        connection_pool=redis_pool,
-        socket_timeout=2,
-        retry_on_timeout=True
-    )
-    redis_client.ping()  # Test connection
-    
-    # Redis clients for specific purposes (using same connection pool)
-    redis_rate_limit = redis.Redis(
-        connection_pool=redis_pool,
-        decode_responses=True
-    )
-    redis_game = redis.Redis(
-        connection_pool=redis_pool,
-        decode_responses=True
-    )
-    
-    app.config['SESSION_TYPE'] = 'redis'
-    app.config['SESSION_REDIS'] = redis_client
-    REDIS_AVAILABLE = True
-    
-except (redis.ConnectionError, redis.RedisError) as e:
-    app.logger.warning(f"Redis not available: {str(e)}. Falling back to filesystem session.")
-    REDIS_AVAILABLE = False
-    redis_client = None
-    redis_rate_limit = None
-    redis_game = None
 
 # Enable CORS
 CORS(app)
@@ -129,27 +83,29 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Rate limiting decorator with fallback
+# Rate limiting decorator - simplified version without Redis
 def rate_limit(limit=10, window=60):
     def decorator(f):
+        # Simple in-memory rate limiting
+        rate_limits = {}
+
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            if not REDIS_AVAILABLE:
-                return f(*args, **kwargs)  # Skip rate limiting if Redis is down
-                
             if current_user.is_authenticated:
                 key = f"rate_limit:{current_user.id}:{request.endpoint}"
-                try:
-                    current = redis_rate_limit.get(key)
-                    if current is None:
-                        redis_rate_limit.setex(key, window, 1)
-                    elif int(current) >= limit:
-                        return jsonify({'error': 'Rate limit exceeded'}), 429
-                    else:
-                        redis_rate_limit.incr(key)
-                except redis.RedisError as e:
-                    app.logger.error(f"Rate limiting failed: {str(e)}")
-                    return f(*args, **kwargs)  # Continue without rate limiting
+                now = time.time()
+                
+                # Clean up old entries
+                rate_limits[key] = [t for t in rate_limits.get(key, []) if now - t < window]
+                
+                # Check if limit exceeded
+                if len(rate_limits.get(key, [])) >= limit:
+                    return jsonify({'error': 'Rate limit exceeded'}), 429
+                
+                # Add current request
+                if key not in rate_limits:
+                    rate_limits[key] = []
+                rate_limits[key].append(now)
                 
             return f(*args, **kwargs)
         return decorated_function
@@ -172,34 +128,28 @@ class GameState:
             'created_at': datetime.now(timezone.utc)
         }
         
-        # Always store in MongoDB for persistence
+        # Store in MongoDB for persistence
         db.game_history.insert_one(game_data)
         
-        if REDIS_AVAILABLE:
-            try:
-                # Store temporary game state in Redis with 5-minute expiry
-                redis_game.setex(self.game_key, 300, json_dumps(game_data))
-            except redis.RedisError as e:
-                app.logger.error(f"Redis game state storage failed: {str(e)}")
+        # Store the current state in memory
+        self.current_state = game_data
     
     def get_game_state(self):
-        if REDIS_AVAILABLE:
-            try:
-                state = redis_game.get(self.game_key)
-                if state:
-                    return json.loads(state)
-            except redis.RedisError as e:
-                app.logger.error(f"Redis game state retrieval failed: {str(e)}")
+        # Return in-memory state if available
+        if hasattr(self, 'current_state'):
+            return self.current_state
         
         # Fallback to MongoDB
         state = db.game_history.find_one({}, sort=[('created_at', -1)])
         if state:
             # Convert ObjectId to string for JSON serialization
             state['_id'] = str(state['_id'])
+            # Update the in-memory cache
+            self.current_state = state
         return state or {'status': 'error'}
 
     def update_game_state(self, updates):
-        # Update MongoDB first for persistence
+        # Get current state first
         current = self.get_game_state()
         current.update(updates)
         
@@ -207,28 +157,17 @@ class GameState:
         if '_id' in current:
             del current['_id']
             
+        # Update MongoDB
         db.game_history.update_one(
             {'game_id': current['game_id']},
             {'$set': updates}
         )
         
-        if REDIS_AVAILABLE:
-            try:
-                redis_game.setex(self.game_key, 300, json_dumps(current))
-            except redis.RedisError as e:
-                app.logger.error(f"Redis game state update failed: {str(e)}")
+        # Update in-memory cache
+        self.current_state = current
 
-# Socket.IO setup with Redis if available
-if REDIS_AVAILABLE:
-    socketio = SocketIO(
-        app,
-        message_queue='redis://:6KPxcgIqJWTsDvfG5h2y1e0LJ12OuFp0@redis-14464.c301.ap-south-1-1.ec2.redns.redis-cloud.com:14464/0',
-        cors_allowed_origins="*",
-        logger=True,
-        engineio_logger=True
-    )
-else:
-    socketio = SocketIO(app, cors_allowed_origins="*")
+# Socket.IO setup
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 @socketio.on('place_bet')
 @rate_limit(limit=5, window=10)  # Limit to 5 bets per 10 seconds
