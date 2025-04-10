@@ -143,57 +143,68 @@ def rate_limit(limit=10, period=60):
 # Game state management with fallback to MongoDB
 class GameState:
     def __init__(self):
-        self.game_key = "current_game"
-        self.reset_game()
-    
-    def reset_game(self):
-        game_data = {
+        self.wheel_game = {
             'status': 'joining',
             'players': [],
             'timer': 90,
-            'break_timer': 15,  # 15 second break timer
+            'break_timer': 15,
             'is_break': False,
             'game_id': str(uuid.uuid4()),
-            'created_at': datetime.now(timezone.utc)
+            'created_at': datetime.now(timezone.utc),
+            'game_type': 'wheel'
         }
-        
-        # Store in MongoDB for persistence
-        db.game_history.insert_one(game_data)
-        
-        # Store the current state in memory
-        self.current_state = game_data
+        self.dice_game = {
+            'status': 'waiting',
+            'players': [],
+            'timer': 60,
+            'game_id': str(uuid.uuid4()),
+            'created_at': datetime.now(timezone.utc),
+            'game_type': 'dice'
+        }
+        self._save_initial_states()
     
-    def get_game_state(self):
-        # Return in-memory state if available
-        if hasattr(self, 'current_state'):
-            return self.current_state
+    def _save_initial_states(self):
+        # Store initial states in MongoDB
+        db.games.insert_many([self.wheel_game, self.dice_game])
+    
+    def get_game_state(self, game_type='wheel'):
+        # Get state from memory
+        state = self.wheel_game if game_type == 'wheel' else self.dice_game
         
-        # Fallback to MongoDB
-        state = db.game_history.find_one({}, sort=[('created_at', -1)])
-        if state:
-            # Convert ObjectId to string for JSON serialization
-            state['_id'] = str(state['_id'])
-            # Update the in-memory cache
-            self.current_state = state
+        # Fallback to MongoDB if needed
+        if not state:
+            state = db.games.find_one(
+                {'game_type': game_type},
+                sort=[('created_at', -1)]
+            )
+            if state:
+                state['_id'] = str(state['_id'])
+                if game_type == 'wheel':
+                    self.wheel_game = state
+                else:
+                    self.dice_game = state
         return state or {'status': 'error'}
 
-    def update_game_state(self, updates):
-        # Get current state first
-        current = self.get_game_state()
+    def update_game_state(self, updates, game_type='wheel'):
+        # Get current state
+        current = self.get_game_state(game_type)
         current.update(updates)
         
-        # Remove _id before updating MongoDB
+        # Remove _id before updating
         if '_id' in current:
             del current['_id']
             
         # Update MongoDB
-        db.game_history.update_one(
+        db.games.update_one(
             {'game_id': current['game_id']},
             {'$set': updates}
         )
         
         # Update in-memory cache
-        self.current_state = current
+        if game_type == 'wheel':
+            self.wheel_game = current
+        else:
+            self.dice_game = current
 
 # Socket.IO setup
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -1457,6 +1468,200 @@ def manual_withdraw():
 @app.route('/dice', methods=['POST', 'GET'])
 def dice():
     return render_template('dice.html')
+
+@socketio.on('join_dice_game')
+def handle_join_dice_game():
+    if not current_user.is_authenticated:
+        return {'error': 'Authentication required'}
+        
+    # Get current game state
+    game_data = game_state.get_game_state('dice')
+    
+    # Check if game is in waiting state and not full
+    if game_data['status'] == 'waiting' and len(game_data['players']) < 5:
+        player_data = {
+            'username': current_user.user_data['username'],
+            'emoji': current_user.user_data['emoji'],
+            'user_id': current_user.id,
+            'score': 0,
+            'rolls': []
+        }
+        
+        # If first player, start 2-minute countdown
+        if not game_data['players']:
+            game_state.update_game_state({
+                'players': [player_data],
+                'timer': 120,
+                'created_at': datetime.now(timezone.utc)
+            }, 'dice')
+            
+            # Start countdown thread
+            socketio.start_background_task(dice_game_countdown)
+        else:
+            # Add player to existing game
+            game_state.update_game_state({
+                'players': [*game_data['players'], player_data]
+            }, 'dice')
+        
+        # Broadcast updated player list
+        emit('dice_player_joined', {
+            'players': game_state.get_game_state('dice')['players'],
+            'count': len(game_state.get_game_state('dice')['players']),
+            'timer': game_state.get_game_state('dice')['timer'],
+            'status': 'waiting'
+        }, broadcast=True)
+        
+        return {'success': True, 'status': 'waiting'}
+    elif game_data['status'] == 'waiting' and len(game_data['players']) >= 5:
+        return {'error': 'Game room is full'}
+    else:
+        return {'error': 'Game is already in progress'}
+
+def dice_game_countdown():
+    while True:
+        game_data = game_state.get_game_state('dice')
+        
+        if game_data['status'] == 'waiting':
+            # Update timer
+            if game_data['timer'] > 0:
+                game_state.update_game_state({'timer': game_data['timer'] - 1}, 'dice')
+                socketio.emit('dice_timer_update', {
+                    'time': game_data['timer'] - 1,
+                    'status': 'waiting'
+                }, broadcast=True)
+                socketio.sleep(1)
+            else:
+                # Timer expired - check player count
+                if len(game_data['players']) >= 2:
+                    # Start game with 3 rounds
+                    game_state.update_game_state({
+                        'status': 'active',
+                        'current_round': 1,
+                        'current_player_index': 0,
+                        'player_timer': 10
+                    }, 'dice')
+                    
+                    # Start player turn timer
+                    socketio.start_background_task(dice_player_turn_countdown)
+                    
+                    # Notify all players game is starting
+                    socketio.emit('dice_game_start', {
+                        'players': game_data['players'],
+                        'current_player': game_data['players'][0]['username'],
+                        'round': 1,
+                        'status': 'active'
+                    }, broadcast=True)
+                else:
+                    # Not enough players - cancel game
+                    game_state.update_game_state({
+                        'status': 'cancelled',
+                        'players': []
+                    }, 'dice')
+                    socketio.emit('dice_game_cancelled', {
+                        'reason': 'Not enough players'
+                    }, broadcast=True)
+                break
+
+@socketio.on('roll_dice')
+@rate_limit(limit=1, period=5)  # Limit to 1 roll per 5 seconds
+def handle_dice_roll(data):
+    if not current_user.is_authenticated:
+        return {'error': 'Authentication required'}
+        
+    game_data = game_state.get_game_state('dice')
+    
+    # Verify it's the current player's turn
+    current_player = game_data['players'][game_data['current_player_index']]
+    if current_player['user_id'] != current_user.id:
+        return {'error': 'Not your turn'}
+    
+    # Process dice roll logic
+    dice1 = random.randint(1, 6)
+    dice2 = random.randint(1, 6)
+    total = dice1 + dice2
+    
+    # Update player's score and rolls
+    updated_players = game_data['players']
+    updated_players[game_data['current_player_index']]['score'] += total
+    updated_players[game_data['current_player_index']]['rolls'].append({
+        'round': game_data['current_round'],
+        'dice1': dice1,
+        'dice2': dice2,
+        'total': total
+    })
+    
+    # Update game state
+    game_state.update_game_state({
+        'players': updated_players,
+        'player_timer': 10  # Reset timer for next player
+    }, 'dice')
+    
+    # Broadcast result
+    emit('dice_result', {
+        'player': current_user.user_data['username'],
+        'dice1': dice1,
+        'dice2': dice2,
+        'total': total,
+        'current_score': updated_players[game_data['current_player_index']]['score'],
+        'round': game_data['current_round']
+    }, broadcast=True)
+    
+    # Move to next player
+    next_player_index = (game_data['current_player_index'] + 1) % len(game_data['players'])
+    game_state.update_game_state({
+        'current_player_index': next_player_index
+    }, 'dice')
+    
+    # If back to first player, check if round is complete
+    if next_player_index == 0:
+        if game_data['current_round'] >= 3:
+            # Game over - determine winner
+            winner = max(game_data['players'], key=lambda p: p['score'])
+            prize = len(game_data['players']) * 100 * 0.8
+            
+            # Update winner's wallet
+            db.users.update_one(
+                {'_id': ObjectId(winner['user_id'])},
+                {'$inc': {'user_data.wallet_balance': prize}}
+            )
+            
+            # Store game results
+            db.dice_games.insert_one({
+                'game_id': game_data['game_id'],
+                'players': game_data['players'],
+                'winner': winner['user_id'],
+                'prize': prize,
+                'created_at': datetime.now(timezone.utc),
+                'status': 'completed'
+            })
+            
+            # Notify all players
+            socketio.emit('dice_game_end', {
+                'winner': winner['username'],
+                'prize': prize,
+                'final_scores': [{
+                    'username': p['username'],
+                    'score': p['score']
+                } for p in game_data['players']]
+            }, broadcast=True)
+            
+            # Reset game state
+            game_state.update_game_state({
+                'status': 'waiting',
+                'players': [],
+                'timer': 120,
+                'current_round': 0,
+                'current_player_index': 0
+            }, 'dice')
+        else:
+            # Next round
+            game_state.update_game_state({
+                'current_round': game_data['current_round'] + 1
+            }, 'dice')
+            
+            socketio.emit('dice_round_start', {
+                'round': game_data['current_round'] + 1
+            }, broadcast=True)
 
 
 if __name__ == '__main__':
