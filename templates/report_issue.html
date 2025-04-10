@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <h1 class="text-center mb-4">Report an Issue</h1>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2>What type of issue are you experiencing?</h2>
+                </div>
+                <div class="card-body">
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="issueType" id="accountIssue" value="account" checked>
+                        <label class="form-check-label" for="accountIssue">
+                            Account/Login Issue
+                        </label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="issueType" id="paymentIssue" value="payment">
+                        <label class="form-check-label" for="paymentIssue">
+                            Deposit/Withdrawal Issue
+                        </label>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="issueType" id="gameIssue" value="game">
+                        <label class="form-check-label" for="gameIssue">
+                            Game Issue
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="issueType" id="otherIssue" value="other">
+                        <label class="form-check-label" for="otherIssue">
+                            Other Issue
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h2>Describe Your Issue</h2>
+                </div>
+                <div class="card-body">
+                    <form>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email Address</label>
+                            <input type="email" class="form-control" id="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="subject" class="form-label">Subject</label>
+                            <input type="text" class="form-control" id="subject" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" rows="5" required placeholder="Please describe your issue in detail including steps to reproduce, error messages, and screenshots if possible."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="screenshot" class="form-label">Upload Screenshot (optional)</label>
+                            <input class="form-control" type="file" id="screenshot" accept="image/*">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Submit Report</button>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="alert alert-info mt-4">
+                <p class="mb-0">Our support team will review your report and respond within 24 hours. For urgent issues, please <a href="{{ url_for('contact_us') }}">contact us directly</a>.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block meta %}
+    <meta name="description" content="Report issues with your account, deposits, withdrawals or games. Our support team will review and respond to your report.">
+    <meta name="keywords" content="report issue, problem, support, account issue, payment issue, game issue">
+{% endblock %}

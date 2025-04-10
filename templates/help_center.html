@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <h1 class="text-center mb-4">Help Center</h1>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2>Getting Started</h2>
+                </div>
+                <div class="card-body">
+                    <p>New to our platform? Follow these guides to get started.</p>
+                    <ul>
+                        <li><a href="#" class="text-dark">How to create an account</a></li>
+                        <li><a href="#" class="text-dark">Making your first deposit</a></li>
+                        <li><a href="#" class="text-dark">Playing your first game</a></li>
+                        <li><a href="#" class="text-dark">Withdrawing your winnings</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2>Troubleshooting</h2>
+                </div>
+                <div class="card-body">
+                    <p>Having issues? Try these solutions.</p>
+                    <ul>
+                        <li><a href="#" class="text-dark">Can't log in to your account</a></li>
+                        <li><a href="#" class="text-dark">Deposit not showing in wallet</a></li>
+                        <li><a href="#" class="text-dark">Game not loading properly</a></li>
+                        <li><a href="#" class="text-dark">Withdrawal delayed or failed</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2>Video Tutorials</h2>
+                </div>
+                <div class="card-body">
+                    <p>Watch these step-by-step video guides.</p>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="ratio ratio-16x9">
+                                <iframe src="https://www.youtube.com/embed/example1" allowfullscreen></iframe>
+                            </div>
+                            <p class="mt-2">How to create an account</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="ratio ratio-16x9">
+                                <iframe src="https://www.youtube.com/embed/example2" allowfullscreen></iframe>
+                            </div>
+                            <p class="mt-2">How to play the wheel game</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-4">
+                <p>Still need help? <a href="{{ url_for('contact_us') }}">Contact our support team</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block meta %}
+    <meta name="description" content="Comprehensive help center with guides, troubleshooting and video tutorials for account setup, deposits, withdrawals and game play.">
+    <meta name="keywords" content="help center, support, guides, troubleshooting, video tutorials, account setup, deposits, withdrawals">
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <h1 class="text-center mb-4">Contact Us</h1>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2>Get in Touch</h2>
+                </div>
+                <div class="card-body">
+                    <p>We're here to help with any questions or issues you may have.</p>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <h3>Customer Support</h3>
+                            <p>Email: support@paiso.com</p>
+                            <p>Phone: +91 9876543210</p>
+                            <p>Available 24/7</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h3>Business Inquiries</h3>
+                            <p>Email: business@paiso.com</p>
+                            <p>Phone: +91 9876543211</p>
+                            <p>Mon-Fri: 9AM-6PM</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h2>Send Us a Message</h2>
+                </div>
+                <div class="card-body">
+                    <form>
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Your Name</label>
+                            <input type="text" class="form-control" id="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email Address</label>
+                            <input type="email" class="form-control" id="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="subject" class="form-label">Subject</label>
+                            <input type="text" class="form-control" id="subject" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Message</label>
+                            <textarea class="form-control" id="message" rows="5" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Send Message</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block meta %}
+    <meta name="description" content="Contact our customer support team for assistance with your account, deposits, withdrawals or any other inquiries.">
+    <meta name="keywords" content="contact us, customer support, help, email, phone, inquiry">
+{% endblock %}

@@ -1365,6 +1365,36 @@ def manual_deposit():
         flash('An error occurred. Please try again.')
         return redirect(url_for('manual_payment'))
 
+@app.route('/contact_us')
+def contact_us():
+    return render_template('contact_us.html')
+
+@app.route('/help_center')
+def help_center():
+    return render_template('help_center.html')
+
+@app.route('/game_rules')
+def game_rules():
+    return render_template('game_rules.html')
+
+@app.route('/faq')
+def faq():
+    return render_template('faq.html')
+
+@app.route('/report_issue')
+def report_issue():
+    return render_template('report_issue.html')
+
+@app.route('/terms_of_service')
+def terms_of_service():
+    return render_template('terms_of_service.html')
+
+@app.route('/privacy_policy')
+def privacy_policy():
+    return render_template('privacy_policy.html')
+
+
+
 @app.route('/manual_withdraw', methods=['GET', 'POST'])
 @login_required
 def manual_withdraw():
@@ -1410,6 +1440,8 @@ def manual_withdraw():
         app.logger.error(f"Manual withdrawal error: {str(e)}")
         flash('An error occurred. Please try again.')
         return redirect(url_for('manual_payment'))
+
+
 
 if __name__ == '__main__':
     try:

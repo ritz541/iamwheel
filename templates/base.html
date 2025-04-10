@@ -86,24 +86,24 @@
                     <ul class="list-unstyled">
                         <li><a href="{{ url_for('select_game') }}" class="text-white">Games</a></li>
                         <li><a href="{{ url_for('wallet') }}" class="text-white">Wallet</a></li>
-                        <li><a href="#" class="text-white">Game Rules</a></li>
-                        <li><a href="#" class="text-white">FAQ</a></li>
+                        <li><a href="{{ url_for('game_rules') }}" class="text-white">Game Rules</a></li>
+                        <li><a href="{{ url_for('faq') }}" class="text-white">FAQ</a></li>
                     </ul>
                 </div>
                 <div class="col-md-4 mb-3">
                     <h5 class="mb-3">Support</h5>
                     <ul class="list-unstyled">
-                        <li><a href="#" class="text-white">Contact Us</a></li>
-                        <li><a href="#" class="text-white">Help Center</a></li>
-                        <li><a href="#" class="text-white">Report an Issue</a></li>
+                        <li><a href="{{ url_for('contact_us') }}" class="text-white">Contact Us</a></li>
+                        <li><a href="{{ url_for('help_center') }}" class="text-white">Help Center</a></li>
+                        <li><a href="{{ url_for('report_issue') }}" class="text-white">Report an Issue</a></li>
                     </ul>
                 </div>
                 <div class="col-md-4 mb-3">
                     <h5 class="mb-3">Legal</h5>
                     <ul class="list-unstyled">
-                        <li><a href="#" class="text-white">Terms of Service</a></li>
-                        <li><a href="#" class="text-white">Privacy Policy</a></li>
-                        <li><a href="#" class="text-white">Responsible Gaming</a></li>
+                        <li><a href="{{ url_for('terms_of_service') }}" class="text-white">Terms of Service</a></li>
+                        <li><a href="{{ url_for('privacy_policy') }}" class="text-white">Privacy Policy</a></li>
+                        <li><a href="faq.html" class="text-white">Responsible Gaming</a></li>
                     </ul>
                 </div>
             </div>
