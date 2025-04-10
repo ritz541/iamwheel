@@ -1454,6 +1454,10 @@ def manual_withdraw():
         return redirect(url_for('manual_payment'))
 
 
+@app.route('/dice', methods=['POST', 'GET'])
+def dice():
+    return render_template('dice.html')
+
 
 if __name__ == '__main__':
     try:
