@@ -8,18 +8,25 @@
                 <h2 class="text-center">Register</h2>
             </div>
             <div class="card-body">
-                <form method="POST">
-    <a href="{{ url_for('google_login') }}" class="google-btn" style="display: block; width: 100%; padding: 10px; margin-bottom: 20px; background-color: #4285f4; color: white; text-align: center; text-decoration: none; border-radius: 4px;">
-        <i class="fab fa-google"></i> Sign up with Google
-    </a>
-    <div style="text-align: center; margin: 15px 0;">- OR -</div>
+                <form method="POST" id="registration-form">
+                    <div id="phone-verification" style="display: none;">
+                        <div class="mb-3">
+                            <label for="google-phone" class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" id="google-phone" name="phone" pattern="[0-9]{10}"
+                                title="Please enter a valid 10-digit phone number" required>
+                        </div>
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-success">Complete Registration</button>
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <label for="username" class="form-label">Username</label>
                         <input type="text" class="form-control" id="username" name="username" required>
                     </div>
                     <div class="mb-3">
                         <label for="phone" class="form-label">Phone Number</label>
-                        <input type="tel" class="form-control" id="phone" name="phone" pattern="[0-9]{10}" title="Please enter a valid 10-digit phone number" required>
+                        <input type="tel" class="form-control" id="phone" name="phone" pattern="[0-9]{10}"
+                            title="Please enter a valid 10-digit phone number" required>
                     </div>
                     <div class="mb-3">
                         <label for="password" class="form-label">Password</label>
@@ -28,7 +35,7 @@
                     <div class="mb-3">
                         <label class="form-label">Choose Your Emoji</label>
                         <div class="emoji-selector">
-                            <input type="text" id="selected_emoji" name="selected_emoji" class="form-control" value="🎮" readonly required>
+                            <input type="text" id="selected_emoji" name="selected_emoji" class="form-control" required>
                             <button type="button" id="emoji-button" class="btn btn-secondary">Choose Emoji</button>
                         </div>
                     </div>
@@ -36,6 +43,19 @@
                         <button type="submit" class="btn btn-success">Register</button>
                     </div>
                 </form>
+                <div class="text-center mt-3">
+                    <!-- NES-style circle Google login button -->
+                    <div class="text-center mt-3">
+                        <div class="divider" style="text-align: center; margin: 15px 0;">- OR -</div>
+                        <a href="#" id="google-login-btn" style="display: inline-flex; align-items: center; justify-content: center;
+              width: 60px; height: 60px; border-radius: 50%; 
+              border: 2px solid #ccc; background-color: #fff;
+              box-shadow: 4px 4px #888; margin-bottom: 15px;">
+                            <i class="nes-icon google is-medium"></i>
+                        </a>
+                    </div>
+
+                </div>
                 <div class="text-center mt-3">
                     <p>Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
                 </div>
@@ -50,22 +70,23 @@
     // Create and append the emoji-picker element
     const picker = document.createElement('emoji-picker');
     document.body.appendChild(picker);
-    
+
     // Style the picker
     picker.style.position = 'absolute';
     picker.style.zIndex = '999';
     picker.style.display = 'none';
-    
+
     // Get DOM elements
     const button = document.getElementById('emoji-button');
     const input = document.getElementById('selected_emoji');
-    
+    const googleLoginBtn = document.getElementById('google-login-btn');
+
     // Add event listener for emoji selection
     picker.addEventListener('emoji-click', event => {
         input.value = event.detail.unicode;
         picker.style.display = 'none';
     });
-    
+
     // Show/hide picker on button click
     button.addEventListener('click', (e) => {
         e.preventDefault(); // Prevent form submission
@@ -78,36 +99,96 @@
             picker.style.display = 'none';
         }
     });
-    
+
     // Hide picker when clicking outside
     document.addEventListener('click', (e) => {
         if (e.target !== button && !picker.contains(e.target)) {
             picker.style.display = 'none';
         }
     });
+
+    // Create dialog element
+    const dialog = document.createElement('dialog');
+    dialog.className = 'nes-dialog';
+    dialog.innerHTML = `
+        <form method="dialog">
+            <p class="title">Validation Error</p>
+            <p>Please fill in your phone number and select an emoji before proceeding with Google login</p>
+            <menu class="dialog-menu">
+                <button class="nes-btn is-primary">OK</button>
+            </menu>
+        </form>
+    `;
+    document.body.appendChild(dialog);
+
+    // Add validation for Google login
+    googleLoginBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const emoji = document.getElementById('selected_emoji').value;
+
+        if (!emoji) {
+            dialog.innerHTML = `
+                <form method="dialog">
+                    <p class="title">Validation Error</p>
+                    <p>Please select an emoji before proceeding with Google login</p>
+                    <menu class="dialog-menu">
+                        <button class="nes-btn is-primary">OK</button>
+                    </menu>
+                </form>
+            `;
+            dialog.showModal();
+            return;
+        }
+
+        // Proceed with Google login
+        window.location.href = "{{ url_for('google_login') }}";
+    });
 </script>
 
 <style>
-.emoji-selector {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    position: relative;
-}
+    .emoji-selector {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        position: relative;
+    }
 
-#selected_emoji {
-    width: 60px;
-    text-align: center;
-    font-size: 24px;
-}
+    #selected_emoji {
+        width: 60px;
+        text-align: center;
+        font-size: 24px;
+    }
 
-emoji-picker {
-    --num-columns: 8;
-    --category-emoji-size: 24px;
-    --emoji-size: 24px;
-    --background: white;
-    --border-color: #ccc;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-}
+    emoji-picker {
+        --num-columns: 8;
+        --category-emoji-size: 24px;
+        --emoji-size: 24px;
+        --background: white;
+        --border-color: #ccc;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .nes-dialog {
+        border: none;
+        padding: 2rem;
+        border-radius: 4px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .nes-dialog::backdrop {
+        background: rgba(0, 0, 0, 0.5);
+    }
+
+    .dialog-menu {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 2rem;
+    }
+
+    .nes-dialog .title {
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+        font-weight: bold;
+    }
 </style>
 {% endblock %}
