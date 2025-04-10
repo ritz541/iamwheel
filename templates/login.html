@@ -8,32 +8,33 @@
                 <h2 class="text-center">Login</h2>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('login') }}" class="login-form" style="display: flex; flex-direction: column; align-items: center;">
-                
+                <form method="POST" action="{{ url_for('login') }}" class="login-form"
+                    style="display: flex; flex-direction: column; align-items: center;">
+
                     <div class="mb-3">
                         <label for="phone" class="form-label">Phone Number</label>
-                        <input type="tel" class="form-control" id="phone" name="phone"
-                               pattern="[0-9]{10}" title="Please enter a valid 10-digit phone number" required>
+                        <input type="tel" class="nes-input" id="phone" name="phone" pattern="[0-9]{10}"
+                            title="Please enter a valid 10-digit phone number" required>
                     </div>
                     <div class="mb-3">
                         <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
+                        <input type="password" class="nes-input" id="password" name="password" required>
                     </div>
                     <div class="text-center">
-                        <button type="submit" class="btn btn-primary">Login</button>
+                        <button type="submit" class="nes-btn btn-primary">Login</button>
                     </div>
                     <div style="text-align: center; margin: 15px 0;">- OR -</div>
 
-                                        <!-- Circle Icon Button only -->
-                                        <a href="{{ url_for('google_login') }}"
-                                        style="display: inline-flex; align-items: center; justify-content: center;
+                    <!-- Circle Icon Button only -->
+                    <a href="{{ url_for('google_login') }}" style="display: inline-flex; align-items: center; justify-content: center;
                                                width: 60px; height: 60px; border-radius: 50%; 
                                                border: 2px solid #ccc; background-color: #fff;
                                                box-shadow: 4px 4px #888; margin-bottom: 15px;">
-                                         <i class="nes-icon google is-medium"></i>
-                                     </a>
+                        <img src="{{ url_for('static', filename='images/google-logo.svg') }}" alt="Google"
+                            style="width: 60px; height: 60px;">
+                    </a>
                 </form>
-                
+
                 <div class="text-center mt-3">
                     <p>Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
                 </div>
