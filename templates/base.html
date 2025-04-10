@@ -66,10 +66,18 @@
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
-                        <div class="alert alert-{{ category }} alert-dismissible fade show nes-container is-rounded" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
+                        <dialog class="nes-dialog is-rounded" id="flash-dialog-{{ loop.index }}">
+                            <form method="dialog">
+                                <p class="title">{{ category|capitalize }}</p>
+                                <p>{{ message }}</p>
+                                <menu class="dialog-menu">
+                                    <button class="nes-btn is-primary">OK</button>
+                                </menu>
+                            </form>
+                        </dialog>
+                        <script>
+                            document.getElementById('flash-dialog-{{ loop.index }}').showModal();
+                        </script>
                     {% endfor %}
                 {% endif %}
             {% endwith %}
