@@ -56,15 +56,15 @@
 
         {% if current_user.is_authenticated %}
             <p>Ready to try your luck?</p>
-            <a href="{{ url_for('select_game') }}" class="btn btn-primary btn-lg">Play Now</a>
-            <a href="{{ url_for('wallet') }}" class="btn btn-secondary btn-lg px-4">Profile</a>
-            <a href="{{ url_for('leaderboard') }}" class="btn btn-info btn-lg">Leaderboard</a>
+            <a href="{{ url_for('select_game') }}" class="nes-btn btn-primary btn-lg">Play Now</a>
+            <a href="{{ url_for('wallet') }}" class="nes-btn btn-warning btn-lg px-4">Profile</a>
+            <a href="{{ url_for('leaderboard') }}" class="nes-btn is-error btn-lg">Leaderboard</a>
 
         {% else %}
             <p>Join the fun! Log in or create an account to start playing.</p>
             <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mt-4">
-                <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg px-4 gap-3">Login</a>
-                <a href="{{ url_for('register') }}" class="btn btn-secondary btn-lg px-4">Register</a>
+                <a href="{{ url_for('login') }}" class="nes-btn btn-primary btn-lg px-4 gap-3">Login</a>
+                <a href="{{ url_for('register') }}" class="nes-btn is-error btn-lg px-4">Register</a>
             </div>
         {% endif %}
     </div>

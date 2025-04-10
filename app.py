@@ -376,6 +376,12 @@ class User(UserMixin):
 def load_user(user_id):
     return User.get(user_id)
 
+@app.route('/set_emoji_session', methods=['POST'])
+def set_emoji_session():
+    data = request.get_json()
+    session['selected_emoji'] = data.get('emoji', '🎮')
+    return jsonify({'success': True})
+
 @app.route('/login/google')
 def google_login():
     redirect_uri = url_for('google_authorize', _external=True)
@@ -391,6 +397,9 @@ def google_authorize():
         user = db.users.find_one({'email': user_info['email']})
         
         if not user:
+            # Get selected emoji from session if available
+            selected_emoji = session.pop('selected_emoji', '🎮')
+            
             user_data = {
                 'email': user_info['email'],
                 'username': user_info.get('name', user_info['email'].split('@')[0]),
@@ -399,7 +408,7 @@ def google_authorize():
                     'email': user_info['email'],
                     'profile_picture': user_info.get('picture'),
                     'wallet_balance': 0,
-                    'emoji': '🎮'
+                    'emoji': selected_emoji
                 },
                 'is_admin': False,
                 'is_blocked': False,

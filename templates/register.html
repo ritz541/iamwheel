@@ -159,8 +159,17 @@
             return;
         }
 
-        // Proceed with Google login
-        window.location.href = "{{ url_for('google_login') }}";
+        // Store selected emoji in session
+        fetch('/set_emoji_session', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ emoji: emoji })
+        }).then(() => {
+            // Proceed with Google login
+            window.location.href = "{{ url_for('google_login') }}";
+        });
     });
 </script>
 
