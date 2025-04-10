@@ -384,8 +384,11 @@ def set_emoji_session():
 
 @app.route('/login/google')
 def google_login():
-    redirect_uri = url_for('google_authorize', _external=True)
+    scheme = os.getenv('OAUTH_SCHEME', 'http')  # fallback to http
+    redirect_uri = url_for('google_authorize', _external=True, _scheme=scheme)
+    print("Using redirect URI:", redirect_uri)
     return google.authorize_redirect(redirect_uri)
+
 
 @app.route('/auth/google/callback')
 def google_authorize():
