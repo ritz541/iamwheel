@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_socketio import SocketIO, emit
+from werkzeug.middleware.proxy_fix import ProxyFix
 from pymongo import MongoClient
 from datetime import datetime, timezone, timedelta
 import bcrypt
@@ -30,6 +31,7 @@ MONGO_URI = os.getenv('MONGO_URI')
 
 # Flask setup with optimized settings
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config.update(
     DEBUG=False,
     ENV='production',
