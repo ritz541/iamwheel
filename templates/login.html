@@ -29,10 +29,29 @@
                     <a href="{{ url_for('google_login') }}" style="display: inline-flex; align-items: center; justify-content: center;
                                                width: 60px; height: 60px; border-radius: 50%; 
                                                border: 2px solid #ccc; background-color: #fff;
-                                               box-shadow: 4px 4px #888; margin-bottom: 15px;">
+                                               box-shadow: 4px 4px #888; margin-bottom: 15px;
+                                               transition: all 0.1s ease;
+                                               transform-style: preserve-3d;">
                         <img src="{{ url_for('static', filename='images/google-logo.svg') }}" alt="Google"
                             style="width: 60px; height: 60px;">
                     </a>
+                    <script>
+                        const googleLoginBtn = document.querySelector('a[href="{{ url_for('google_login') }}"]');
+                        googleLoginBtn.addEventListener('mousedown', () => {
+                            googleLoginBtn.style.transform = 'translateY(2px)';
+                            googleLoginBtn.style.boxShadow = '2px 2px #888';
+                        });
+                        
+                        googleLoginBtn.addEventListener('mouseup', () => {
+                            googleLoginBtn.style.transform = 'translateY(0)';
+                            googleLoginBtn.style.boxShadow = '4px 4px #888';
+                        });
+                        
+                        googleLoginBtn.addEventListener('mouseleave', () => {
+                            googleLoginBtn.style.transform = 'translateY(0)';
+                            googleLoginBtn.style.boxShadow = '4px 4px #888';
+                        });
+                    </script>
                 </form>
 
                 <div class="text-center mt-3">
