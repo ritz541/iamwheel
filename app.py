@@ -382,6 +382,10 @@ def set_emoji_session():
     session['selected_emoji'] = data.get('emoji', '🎮')
     return jsonify({'success': True})
 
+@app.route('/card-game')
+def card_game():
+    return render_template('card_game.html')
+
 @app.route('/login/google')
 def google_login():
     scheme = os.getenv('OAUTH_SCHEME', 'http')  # fallback to http
