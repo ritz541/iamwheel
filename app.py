@@ -17,6 +17,9 @@ from flask_session import Session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash
 import razorpay
+from authlib.integrations.flask_client import OAuth
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 # Load environment variables
 load_dotenv()
@@ -40,7 +43,25 @@ app.config.update(
     JSON_SORT_KEYS=False,  # Reduce CPU usage on JSON responses
     MAX_CONTENT_LENGTH=5 * 1024 * 1024,  # Limit upload size to 5MB
     RAZORPAY_KEY_ID='rzp_test_2GVU69GqDPjQSs',
-    RAZORPAY_KEY_SECRET='YBzsWdwHnjITQe19BpsWTpQD'
+    RAZORPAY_KEY_SECRET='YBzsWdwHnjITQe19BpsWTpQD',
+    GOOGLE_CLIENT_ID=os.getenv('GOOGLE_CLIENT_ID'),
+    GOOGLE_CLIENT_SECRET=os.getenv('GOOGLE_CLIENT_SECRET')
+)
+
+# OAuth Setup
+oauth = OAuth(app)
+google = oauth.register(
+    name='google',
+    client_id=app.config['GOOGLE_CLIENT_ID'],
+    client_secret=app.config['GOOGLE_CLIENT_SECRET'],
+    access_token_url='https://oauth2.googleapis.com/token',
+    access_token_params=None,
+    authorize_url='https://accounts.google.com/o/oauth2/v2/auth',
+    authorize_params=None,
+    api_base_url='https://www.googleapis.com/oauth2/v3/',
+    userinfo_endpoint='https://openidconnect.googleapis.com/v1/userinfo',  # explicitly set
+    client_kwargs={'scope': 'openid email profile'},
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration'  # ✅ THIS is the key
 )
 
 # Enable CORS
@@ -354,6 +375,55 @@ class User(UserMixin):
 @login_manager.user_loader
 def load_user(user_id):
     return User.get(user_id)
+
+@app.route('/login/google')
+def google_login():
+    redirect_uri = url_for('google_authorize', _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+@app.route('/auth/google/callback')
+def google_authorize():
+    try:
+        token = google.authorize_access_token()
+        resp = google.get('userinfo')
+        user_info = resp.json()
+
+        user = db.users.find_one({'email': user_info['email']})
+        
+        if not user:
+            user_data = {
+                'email': user_info['email'],
+                'username': user_info.get('name', user_info['email'].split('@')[0]),
+                'user_data': {
+                    'username': user_info.get('name', user_info['email'].split('@')[0]),
+                    'email': user_info['email'],
+                    'profile_picture': user_info.get('picture'),
+                    'wallet_balance': 0,
+                    'emoji': '🎮'
+                },
+                'is_admin': False,
+                'is_blocked': False,
+                'created_at': datetime.now(timezone.utc),
+                'last_active': datetime.now(timezone.utc),
+                'google_id': user_info['sub']
+            }
+            result = db.users.insert_one(user_data)
+            user_id = str(result.inserted_id)
+        else:
+            user_id = str(user['_id'])
+            db.users.update_one(
+                {'_id': ObjectId(user_id)},
+                {'$set': {'last_active': datetime.now(timezone.utc)}}
+            )
+        
+        user_obj = User(user_id)
+        login_user(user_obj)
+        flash('Successfully logged in with Google!', 'success')
+        return redirect(url_for('index'))  # Redirect to homepage or dashboard
+    except Exception as e:
+        print(e)
+        flash('Google login failed.', 'error')
+        return redirect(url_for('login'))
 
 def update_game_timer():
     while True:
