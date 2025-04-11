@@ -1117,17 +1117,30 @@ def wallet():
     }).sort('created_at', -1)
 
     for game in games:
-        is_winner = game['winner'] == current_user.user_data['username']
+        # Use .get() to safely access 'winner' and provide a default (None)
+        # Comparison with None will result in False if 'winner' key is missing
+        is_winner = game.get('winner') == current_user.user_data['username']
+        
+        # Safely get winner_prize, defaulting to 0 if missing
+        winner_prize = game.get('winner_prize', 0) 
+        
         game_history.append({
-            'date': game['created_at'],
-            'game_type': 'Wheel Game',
+            'date': game.get('created_at'), # Also use .get for safety
+            'game_type': 'Wheel Game', # Assuming only wheel games for now
             'won': is_winner,
-            'amount': game['winner_prize'] if is_winner else -100,  # -100 for entry fee if lost
-            'total_pool': game['total_pool'],
-            'platform_fee': game['platform_fee']
+            'amount': winner_prize if is_winner else -100,  # Use the fetched winner_prize
+            'total_pool': game.get('total_pool', 0), # Safe access
+            'platform_fee': game.get('platform_fee', 0) # Safe access
         })
     
-    return render_template('wallet.html', transactions=transactions, game_history=game_history)
+    # Pass the original lists with datetime objects to the template
+    # Ensure transactions are serializable if needed (unlikely here)
+    # serializable_transactions = make_serializable(transactions)
+    # serializable_game_history = make_serializable(game_history)
+
+    return render_template('wallet.html', 
+                           transactions=transactions, 
+                           game_history=game_history)
 
 @app.route('/request_deposit', methods=['POST'])
 @login_required
