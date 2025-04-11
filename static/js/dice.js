@@ -1,3 +1,94 @@
+// Helper function to show NES.css dialogs
+function showNesDialog(message, type = 'default') { // type can be default, success, warning, error
+    // Check if a dialog already exists, remove it first
+    const existingDialog = document.getElementById('nes-game-dialog');
+    if (existingDialog) {
+        existingDialog.remove();
+    }
+
+    // Create dialog element
+    const dialog = document.createElement('dialog');
+    let dialogClass = 'nes-dialog';
+    let iconClass = 'nes-icon star is-small'; // Default icon
+    let titleText = 'Notification';
+
+    switch (type) {
+        case 'success':
+            dialogClass += ' is-success';
+            iconClass = 'nes-icon trophy is-small';
+            titleText = 'Success!';
+            break;
+        case 'warning':
+            dialogClass += ' is-warning';
+            iconClass = 'nes-icon exclamation is-small'; // Using exclamation icon
+            titleText = 'Warning';
+            break;
+        case 'error':
+            dialogClass += ' is-error';
+            iconClass = 'nes-icon close is-small'; // Using close icon for errors
+            titleText = 'Error';
+            break;
+        default:
+             dialogClass += ' is-light'; // Default to light theme
+    }
+
+    dialog.className = dialogClass;
+    dialog.id = 'nes-game-dialog';
+    dialog.style.position = 'fixed'; // Ensure it appears on top
+    dialog.style.top = '20%';
+    dialog.style.left = '50%';
+    dialog.style.transform = 'translateX(-50%)';
+    dialog.style.zIndex = '1000';
+    dialog.style.minWidth = '300px'; // Ensure minimum width
+    dialog.style.maxWidth = '80%'; // Prevent it getting too wide
+
+    // Create form (required by nes.css dialog)
+    const form = document.createElement('form');
+    form.method = 'dialog';
+
+    // Add title with icon
+    const titleContainer = document.createElement('p');
+    titleContainer.className = 'title';
+    titleContainer.innerHTML = `<i class="${iconClass}"></i> ${titleText}`;
+    form.appendChild(titleContainer);
+
+    const messageText = document.createElement('p');
+    messageText.style.marginTop = '1rem';
+    messageText.style.marginBottom = '1.5rem'; // Add spacing
+    messageText.textContent = message;
+    form.appendChild(messageText);
+
+    // Add close button menu
+    const menu = document.createElement('menu');
+    menu.className = 'dialog-menu';
+    menu.style.textAlign = 'center'; // Center the button
+
+    const closeButton = document.createElement('button');
+    // Match button type to dialog type for consistency
+    let btnClass = 'nes-btn';
+     switch (type) {
+        case 'success': btnClass += ' is-success'; break;
+        case 'warning': btnClass += ' is-warning'; break;
+        case 'error': btnClass += ' is-error'; break;
+        default: btnClass += ' is-primary';
+    }
+    closeButton.className = btnClass;
+    closeButton.textContent = 'Ok';
+    closeButton.onclick = (e) => {
+        e.preventDefault(); // Prevent form submission just in case
+        dialog.close();
+        dialog.remove(); // Clean up DOM
+    };
+    menu.appendChild(closeButton);
+    form.appendChild(menu);
+
+    dialog.appendChild(form);
+    document.body.appendChild(dialog);
+
+    // Show the dialog
+    dialog.showModal();
+}
+
 // Multiplayer Dice Game Logic
 // Constants for dice management
 const MIN_DICE = 1;
@@ -246,14 +337,14 @@ class DiceGame {
       console.log("Event: dice_game_end", data);
       this.gameStatus = 'completed';
       this.updateUIFromState(data); // Update with final scores
-      alert(`Game Over! Winner: ${data.winner}. Prize: ₹${data.prize}`);
+      showNesDialog(`Game Over! Winner: ${data.winner}. Prize: ₹${data.prize}`, 'success');
     });
 
     this.socket.on('dice_game_cancelled', (data) => {
       console.log("Event: dice_game_cancelled", data);
        this.gameStatus = 'cancelled';
        this.updateUIFromState({ status: 'cancelled', players: [] }); // Reset state
-       alert(`Game Cancelled: ${data.reason}`);
+       showNesDialog(`Game Cancelled: ${data.reason}`, 'warning');
     });
     
     // Listen for single roll result
@@ -274,7 +365,7 @@ class DiceGame {
     
     this.socket.on('connect_error', (err) => {
         console.error('Connection Error:', err);
-        alert('Failed to connect to the server.');
+        showNesDialog('Failed to connect to the game server. Please try refreshing.', 'error');
     });
 
     this.socket.on('disconnect', (reason) => {
@@ -284,7 +375,7 @@ class DiceGame {
 
     this.socket.on('dice_error', (data) => {
         console.error('Dice Game Error:', data.error);
-        alert(`Error: ${data.error}`); // Show error to user
+        showNesDialog(`Error: ${data.error}`, 'error');
     });
   }
 
@@ -445,7 +536,7 @@ class DiceGame {
 window.addEventListener('DOMContentLoaded', () => {
   if (typeof io === 'undefined') {
     console.error("Socket.IO client library not found.");
-    alert("Error connecting to game server. Please refresh.");
+    showNesDialog("Error connecting to game server. Please refresh.", 'error');
     return;
   }
   
