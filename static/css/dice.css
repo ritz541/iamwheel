@@ -1,0 +1,34 @@
+/* Dice styling and animation */
+.dice-area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+}
+
+#dice {
+    width: 100px;
+    height: 100px;
+    position: relative;
+    transition: transform 0.5s ease;
+}
+
+/* Animation for dice rolling */
+@keyframes roll {
+    0% { transform: rotateX(0deg) rotateY(0deg); }
+    25% { transform: rotateX(180deg) rotateY(90deg); }
+    50% { transform: rotateX(270deg) rotateY(180deg); }
+    75% { transform: rotateX(180deg) rotateY(270deg); }
+    100% { transform: rotateX(360deg) rotateY(360deg); }
+}
+
+.rolling {
+    animation: roll 0.5s ease;
+}
+
+/* Make the dice a bit more 3D */
+#dice svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(3px 3px 3px rgba(0,0,0,0.3));
+}
