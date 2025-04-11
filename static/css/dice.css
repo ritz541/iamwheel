@@ -237,3 +237,48 @@
 .is-winner-dialog ul.nes-list.is-disc li {
     margin-bottom: 0.25rem; /* Space between list items */
 }
+
+/* --- Dice Container Intensity --- */
+
+/* Define the pulse animation - ONLY affecting box-shadow glow */
+@keyframes pulse-glow {
+    0% {
+        /* Base shadow + subtle glow */
+        box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2), 0 0 5px 0px rgba(255, 165, 0, 0.5); 
+    }
+    50% {
+        /* Base shadow + stronger glow */
+        box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2), 0 0 15px 5px rgba(255, 165, 0, 0.8); 
+    }
+    100% {
+        /* Base shadow + subtle glow */
+        box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2), 0 0 5px 0px rgba(255, 165, 0, 0.5); 
+    }
+}
+
+/* Style for the dice container (#single-dice) when waiting for roll */
+#single-dice.dice-container-waiting {
+    /* Only apply animation */
+    animation: pulse-glow 1.5s infinite ease-in-out;
+    /* border-color changes removed from keyframes, no need to override here */
+}
+
+/* Base style for the dice (#single-dice) */
+#single-dice {
+    /* Transition removed as it might interfere with infinite animation start/end */
+    /* transition: border-color 0.3s ease, box-shadow 0.3s ease; */
+}
+
+/* Remove the rules targeting #dice-canvas as it's not used in this JS */
+/* 
+#dice-canvas.dice-container-waiting { 
+    border: 3px solid rgba(50, 50, 50, 0.8); 
+    border-radius: 10px; 
+    animation: pulse-glow 1.5s infinite ease-in-out;
+} 
+#dice-canvas { 
+    border: 3px solid transparent; 
+    border-radius: 10px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease; 
+} 
+*/

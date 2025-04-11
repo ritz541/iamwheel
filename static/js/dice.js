@@ -404,16 +404,14 @@ class DiceGame {
       this.updateUIFromState(data); 
       console.log("[dice_game_end] this.players state (may not have final scores):", JSON.stringify(this.players)); 
       
-      // Delay the winner dialog by 1 second 
-      setTimeout(() => {
-          const dialogOptions = { 
-              winnerName: data.winner, 
-              prize: data.prize, 
-              players: data.final_scores 
-          }; 
-          console.log("[dice_game_end setTimeout] Options being passed to showNesDialog:", JSON.stringify(dialogOptions)); 
-          showNesDialog('Game Over!', 'success', dialogOptions); 
-      }, 1000); // Reduced delay to 1000ms
+      // Call the winner dialog immediately (Removed setTimeout)
+      const dialogOptions = { 
+          winnerName: data.winner, 
+          prize: data.prize, 
+          players: data.final_scores 
+      }; 
+      console.log("[dice_game_end] Options being passed to showNesDialog:", JSON.stringify(dialogOptions)); 
+      showNesDialog('Game Over!', 'success', dialogOptions); 
     });
 
     this.socket.on('dice_game_cancelled', (data) => {
@@ -512,10 +510,12 @@ class DiceGame {
     this.joinBtn.style.display = canJoin ? 'inline-block' : 'none';
     this.rollBtn.style.display = (this.gameStatus === 'active') ? 'inline-block' : 'none';
 
+    let canRoll = false;
     // Enable/disable Roll button
     if (this.gameStatus === 'active') {
-        this.rollBtn.disabled = !isMyTurn;
-        if (!isMyTurn) {
+        canRoll = isMyTurn;
+        this.rollBtn.disabled = !canRoll;
+        if (!canRoll) {
              this.rollBtn.classList.add('is-disabled');
         } else {
              this.rollBtn.classList.remove('is-disabled');
@@ -530,6 +530,17 @@ class DiceGame {
          this.createBtn.style.display = 'none';
          this.joinBtn.style.display = 'none';
     }
+
+    // --- Add/Remove pulsing class on dice element --- 
+    const diceElement = this.diceElement; // Use the reference stored in the class
+    if (diceElement) { // Check if the element exists
+        if (canRoll) {
+            diceElement.classList.add('dice-container-waiting');
+        } else {
+            diceElement.classList.remove('dice-container-waiting');
+        }
+    } 
+    // --- End Add/Remove --- 
   }
 
   updateLeaderboard() {
