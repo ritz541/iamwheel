@@ -1,5 +1,8 @@
 // Helper function to show NES.css dialogs
-function showNesDialog(message, type = 'default') { // type can be default, success, warning, error
+function showNesDialog(message, type = 'default', options = {}) { 
+    // options can include { winnerName: string, prize: number }
+    const { winnerName, prize } = options;
+
     // Check if a dialog already exists, remove it first
     const existingDialog = document.getElementById('nes-game-dialog');
     if (existingDialog) {
@@ -11,36 +14,44 @@ function showNesDialog(message, type = 'default') { // type can be default, succ
     let dialogClass = 'nes-dialog';
     let iconClass = 'nes-icon star is-small'; // Default icon
     let titleText = 'Notification';
+    let isWinnerDialog = false;
 
     switch (type) {
         case 'success':
-            dialogClass += ' is-success';
-            iconClass = 'nes-icon trophy is-small';
-            titleText = 'Success!';
+            if (winnerName !== undefined && prize !== undefined) { // Check if winner details provided
+                 dialogClass += ' is-success is-winner-dialog'; // Add specific class for winner
+                 iconClass = 'nes-icon trophy is-large'; // Larger trophy icon
+                 titleText = 'Game Over!';
+                 isWinnerDialog = true;
+            } else {
+                dialogClass += ' is-success';
+                iconClass = 'nes-icon like is-small'; // Regular success icon
+                titleText = 'Success!';
+            }
             break;
         case 'warning':
             dialogClass += ' is-warning';
-            iconClass = 'nes-icon exclamation is-small'; // Using exclamation icon
+            iconClass = 'nes-icon exclamation is-small';
             titleText = 'Warning';
             break;
         case 'error':
             dialogClass += ' is-error';
-            iconClass = 'nes-icon close is-small'; // Using close icon for errors
+            iconClass = 'nes-icon close is-small';
             titleText = 'Error';
             break;
         default:
-             dialogClass += ' is-light'; // Default to light theme
+             dialogClass += ' is-light'; 
     }
 
     dialog.className = dialogClass;
     dialog.id = 'nes-game-dialog';
-    dialog.style.position = 'fixed'; // Ensure it appears on top
-    dialog.style.top = '20%';
+    dialog.style.position = 'fixed'; 
+    dialog.style.top = '50%'; // Center vertically
     dialog.style.left = '50%';
-    dialog.style.transform = 'translateX(-50%)';
+    dialog.style.transform = 'translate(-50%, -50%)'; // Centering transform
     dialog.style.zIndex = '1000';
-    dialog.style.minWidth = '300px'; // Ensure minimum width
-    dialog.style.maxWidth = '80%'; // Prevent it getting too wide
+    dialog.style.minWidth = '350px'; // Slightly wider for winner info
+    dialog.style.maxWidth = '90%'; 
 
     // Create form (required by nes.css dialog)
     const form = document.createElement('form');
@@ -49,25 +60,35 @@ function showNesDialog(message, type = 'default') { // type can be default, succ
     // Add title with icon
     const titleContainer = document.createElement('p');
     titleContainer.className = 'title';
+    titleContainer.style.display = 'flex';
+    titleContainer.style.alignItems = 'center';
+    titleContainer.style.gap = '0.5rem'; // Space between icon and text
     titleContainer.innerHTML = `<i class="${iconClass}"></i> ${titleText}`;
     form.appendChild(titleContainer);
 
     const messageText = document.createElement('p');
     messageText.style.marginTop = '1rem';
-    messageText.style.marginBottom = '1.5rem'; // Add spacing
-    messageText.textContent = message;
+    messageText.style.marginBottom = '1.5rem';
+    messageText.style.textAlign = 'center'; // Center message text
+
+    if (isWinnerDialog) {
+        // Construct winner message with highlighting
+        messageText.innerHTML = 
+            `Congratulations <strong class="winner-name">${winnerName}</strong>! <br> You won the prize of ₹${prize}!`;
+    } else {
+        messageText.textContent = message; // Use the standard message
+    }
     form.appendChild(messageText);
 
     // Add close button menu
     const menu = document.createElement('menu');
     menu.className = 'dialog-menu';
-    menu.style.textAlign = 'center'; // Center the button
+    menu.style.textAlign = 'center'; 
 
     const closeButton = document.createElement('button');
-    // Match button type to dialog type for consistency
     let btnClass = 'nes-btn';
      switch (type) {
-        case 'success': btnClass += ' is-success'; break;
+        case 'success': btnClass += isWinnerDialog ? ' is-success' : ' is-success'; break; // Keep success style
         case 'warning': btnClass += ' is-warning'; break;
         case 'error': btnClass += ' is-error'; break;
         default: btnClass += ' is-primary';
@@ -75,9 +96,9 @@ function showNesDialog(message, type = 'default') { // type can be default, succ
     closeButton.className = btnClass;
     closeButton.textContent = 'Ok';
     closeButton.onclick = (e) => {
-        e.preventDefault(); // Prevent form submission just in case
+        e.preventDefault(); 
         dialog.close();
-        dialog.remove(); // Clean up DOM
+        dialog.remove(); 
     };
     menu.appendChild(closeButton);
     form.appendChild(menu);
@@ -337,14 +358,15 @@ class DiceGame {
       console.log("Event: dice_game_end", data);
       this.gameStatus = 'completed';
       this.updateUIFromState(data); // Update with final scores
-      showNesDialog(`Game Over! Winner: ${data.winner}. Prize: ₹${data.prize}`, 'success');
+      // Call dialog with winner info
+      showNesDialog('Game Over!', 'success', { winnerName: data.winner, prize: data.prize }); 
     });
 
     this.socket.on('dice_game_cancelled', (data) => {
       console.log("Event: dice_game_cancelled", data);
        this.gameStatus = 'cancelled';
        this.updateUIFromState({ status: 'cancelled', players: [] }); // Reset state
-       showNesDialog(`Game Cancelled: ${data.reason}`, 'warning');
+       showNesDialog(`Game Cancelled: ${data.reason}`, 'warning'); // No winner info here
     });
     
     // Listen for single roll result
