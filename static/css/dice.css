@@ -1,0 +1,284 @@
+/* Dice styling and animation */
+:root {
+    --die-w: 60px;
+    --gap: 1rem;
+    --border-w: 2px;
+}
+
+.dice-area {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+    gap: var(--gap);
+}
+
+#dice {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: calc((var(--die-w) + (var(--border-w) * 2) + var(--gap)) * 5);
+    gap: var(--gap);
+    position: relative;
+}
+
+#add-dice {
+    translate: 0 -25%;
+    margin-bottom: 1rem;
+}
+
+#add-dice,
+.die-6 {
+    width: var(--die-w);
+    aspect-ratio: 1/1;
+    border-radius: 0.5rem;
+    border: var(--border-w) solid gray;
+    position: relative;
+}
+
+.die-6 {
+    background: white;
+    box-shadow: inset -3px -3px 10px 10px #ddd;
+}
+
+/* Animation for dice rolling - enhanced for more realistic 3D effect */
+@keyframes roll {
+    0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+    10% { transform: rotateX(120deg) rotateY(30deg) rotateZ(15deg); }
+    20% { transform: rotateX(240deg) rotateY(60deg) rotateZ(30deg); }
+    30% { transform: rotateX(360deg) rotateY(90deg) rotateZ(45deg); }
+    40% { transform: rotateX(480deg) rotateY(120deg) rotateZ(60deg); }
+    50% { transform: rotateX(600deg) rotateY(150deg) rotateZ(75deg); }
+    60% { transform: rotateX(720deg) rotateY(180deg) rotateZ(90deg); }
+    70% { transform: rotateX(840deg) rotateY(210deg) rotateZ(105deg); }
+    80% { transform: rotateX(960deg) rotateY(240deg) rotateZ(120deg); }
+    90% { transform: rotateX(1080deg) rotateY(270deg) rotateZ(135deg); }
+    100% { transform: rotateX(1200deg) rotateY(300deg) rotateZ(150deg); }
+}
+
+.rolling {
+    animation: roll 1s cubic-bezier(0.17, 0.67, 0.83, 0.67) both;
+}
+
+/* Add dice button styling */
+#add-dice::after,
+.die-6::after {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(var(--die-w) * 0.8);
+    border: var(--border-w) dashed gray;
+    scale: 0.5 0.5;
+    font-size: xx-large;
+    transition: all 0.3s;
+}
+
+#add-dice::after {
+    content: "➕";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    aspect-ratio: 1/1;
+    border-radius: 0.5rem;
+    opacity: 1;
+}
+
+.die-6::after {
+    content: "❌";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    aspect-ratio: 1/1;
+    border-radius: 0.5rem;
+    opacity: 0;
+}
+
+#add-dice:hover,
+.die-6:is(:hover, .adding)::after {
+    cursor: pointer;
+    opacity: 1;
+    scale: 1 1;
+}
+
+.die-6.minimum::after {
+    content: "🔒";
+    cursor: not-allowed;
+}
+
+#add-dice.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Dot styling */
+.die-6 * {
+    border-radius: 50%;
+    background: black;
+    width: 20%;
+    aspect-ratio: 1/1;
+    position: absolute;
+    box-shadow: inset -2px -2px 5px 1px gray;
+}
+
+.dot-ml {
+    top: 50%;
+    left: 25%;
+    translate: -50% -50%;
+}
+
+.dot-tr {
+    top: 25%;
+    left: 75%;
+    translate: -50% -50%;
+}
+
+.dot-bl {
+    bottom: 25%;
+    right: 75%;
+    translate: 50% 50%;
+}
+
+.dot-tl {
+    top: 25%;
+    left: 25%;
+    translate: -50% -50%;
+}
+
+.dot-br {
+    bottom: 25%;
+    right: 25%;
+    translate: 50% 50%;
+}
+
+.dot-mr {
+    top: 50%;
+    left: 75%;
+    translate: -50% -50%;
+}
+
+[data-roll="1"] :is(.dot-tl, .dot-tr, .dot-bl, .dot-br) {
+    display: none;
+}
+
+[data-roll="2"] :is(.dot-ml, .dot-mr, .dot-tl, .dot-br) {
+    display: none;
+}
+
+[data-roll="3"] :is(.dot-tl, .dot-br) {
+    display: none;
+}
+
+[data-roll="4"] :is(.dot-ml, .dot-mr) {
+    display: none;
+}
+
+:is([data-roll="1"], [data-roll="3"], [data-roll="5"]) :is(.dot-ml, .dot-mr) {
+    left: 50%;
+}
+
+/* Original dot styling for the single dice */
+.dot {
+    width: 7px;
+    height: 7px;
+    background-color: black;
+    border-radius: 50%;
+    margin: auto;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.show {
+    opacity: 1;
+}
+
+/* Style to highlight the current user's row in the leaderboard */
+.current-user-highlight {
+    border-left: 4px solid #ffcc00 !important; /* Add a distinct left border */
+}
+
+/* Winner Dialog Specific Styles */
+.nes-dialog.is-winner-dialog {
+    box-shadow: 0 0 15px 5px gold; /* Keep the golden glow */
+    border-color: gold !important;
+    /* Add a subtle diagonal stripe pattern using gradient */
+    background-image: repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.05),
+        rgba(255, 255, 255, 0.05) 10px,
+        rgba(0, 0, 0, 0.05) 10px,
+        rgba(0, 0, 0, 0.05) 20px
+    );
+    /* Adjust background color if needed, NES.css is-success might handle this */
+    /* background-color: #dff0d8; */ 
+}
+
+/* Style the winner name text */
+.is-winner-dialog .winner-name {
+    /* color: #e69900; /* Original gold color */
+    /* Using nes-text is-warning now, but can override */
+    /* color: #f7d51d; /* Brighter gold/yellow */
+    font-weight: bold;
+    /* text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5); /* Kept from previous */
+    font-size: 1.1em; /* Slightly larger */
+    display: inline-block; 
+    vertical-align: middle; /* Align better if needed */
+}
+
+/* Style the score list inside the winner dialog */
+.is-winner-dialog ul.nes-list.is-disc {
+    margin-top: 0.5rem; /* Add some space above the list */
+    padding-left: 2rem; /* Adjust padding if needed */
+}
+
+/* Optional: Style list items */
+.is-winner-dialog ul.nes-list.is-disc li {
+    margin-bottom: 0.25rem; /* Space between list items */
+}
+
+/* --- Dice Container Intensity --- */
+
+/* Define the pulse animation - ONLY affecting box-shadow glow */
+@keyframes pulse-glow {
+    0% {
+        /* Base shadow + subtle glow */
+        box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2), 0 0 5px 0px rgba(255, 165, 0, 0.5); 
+    }
+    50% {
+        /* Base shadow + stronger glow */
+        box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2), 0 0 15px 5px rgba(255, 165, 0, 0.8); 
+    }
+    100% {
+        /* Base shadow + subtle glow */
+        box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2), 0 0 5px 0px rgba(255, 165, 0, 0.5); 
+    }
+}
+
+/* Style for the dice container (#single-dice) when waiting for roll */
+#single-dice.dice-container-waiting {
+    /* Only apply animation */
+    animation: pulse-glow 1.5s infinite ease-in-out;
+    /* border-color changes removed from keyframes, no need to override here */
+}
+
+/* Base style for the dice (#single-dice) */
+#single-dice {
+    /* Transition removed as it might interfere with infinite animation start/end */
+    /* transition: border-color 0.3s ease, box-shadow 0.3s ease; */
+}
+
+/* Remove the rules targeting #dice-canvas as it's not used in this JS */
+/* 
+#dice-canvas.dice-container-waiting { 
+    border: 3px solid rgba(50, 50, 50, 0.8); 
+    border-radius: 10px; 
+    animation: pulse-glow 1.5s infinite ease-in-out;
+} 
+#dice-canvas { 
+    border: 3px solid transparent; 
+    border-radius: 10px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease; 
+} 
+*/
