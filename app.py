@@ -1722,7 +1722,7 @@ def dice_game_countdown():
 
 @socketio.on('roll_dice')
 @rate_limit(limit=1, period=5)  # Limit to 1 roll per 5 seconds
-def handle_dice_roll(data):
+def handle_dice_roll(data=None):
     if not current_user.is_authenticated:
         return {'error': 'Authentication required'}
         
