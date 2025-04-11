@@ -1,7 +1,8 @@
 // Helper function to show NES.css dialogs
 function showNesDialog(message, type = 'default', options = {}) { 
-    // options can include { winnerName: string, prize: number }
-    const { winnerName, prize } = options;
+    // options can include { winnerName: string, prize: number, players: array }
+    const { winnerName, prize, players } = options;
+    console.log("[showNesDialog] Received options:", { winnerName, prize, players }); // Log received options
 
     // Check if a dialog already exists, remove it first
     const existingDialog = document.getElementById('nes-game-dialog');
@@ -19,11 +20,13 @@ function showNesDialog(message, type = 'default', options = {}) {
     switch (type) {
         case 'success':
             if (winnerName !== undefined && prize !== undefined) { // Check if winner details provided
+                 console.log("[showNesDialog] Conditions met for winner dialog."); // Log condition check
                  dialogClass += ' is-success is-winner-dialog'; // Add specific class for winner
                  iconClass = 'nes-icon trophy is-large'; // Larger trophy icon
                  titleText = 'Game Over!';
                  isWinnerDialog = true;
             } else {
+                console.log("[showNesDialog] Conditions NOT met for winner dialog (winnerName or prize missing)."); // Log condition check failure
                 dialogClass += ' is-success';
                 iconClass = 'nes-icon like is-small'; // Regular success icon
                 titleText = 'Success!';
@@ -42,6 +45,8 @@ function showNesDialog(message, type = 'default', options = {}) {
         default:
              dialogClass += ' is-light'; 
     }
+
+    console.log("[showNesDialog] isWinnerDialog flag:", isWinnerDialog); // Log the flag value
 
     dialog.className = dialogClass;
     dialog.id = 'nes-game-dialog';
@@ -73,8 +78,21 @@ function showNesDialog(message, type = 'default', options = {}) {
 
     if (isWinnerDialog) {
         // Construct winner message with highlighting
+        let scoreListHtml = '<hr style="margin: 1rem 0;">'; // Add a separator
+        if (players && players.length > 0) {
+            // Sort players by score descending
+            const sortedPlayers = [...players].sort((a, b) => (b.score || 0) - (a.score || 0));
+            scoreListHtml += '<p style="margin-bottom: 0.5rem; text-align: left;"><strong>Final Scores:</strong></p>';
+            scoreListHtml += '<ul style="list-style: none; padding-left: 1rem; text-align: left;">';
+            sortedPlayers.forEach(p => {
+                scoreListHtml += `<li>${p.username || 'Player'}: ${p.score || 0}</li>`;
+            });
+            scoreListHtml += '</ul>';
+        }
+
         messageText.innerHTML = 
-            `Congratulations <strong class="winner-name">${winnerName}</strong>! <br> You won the prize of ₹${prize}!`;
+            `Congratulations <strong class="winner-name">${winnerName}</strong>! <br> You won the prize of ₹${prize}!` +
+            scoreListHtml; // Append the score list
     } else {
         messageText.textContent = message; // Use the standard message
     }
@@ -355,11 +373,23 @@ class DiceGame {
     });
 
     this.socket.on('dice_game_end', (data) => {
-      console.log("Event: dice_game_end", data);
+      console.log("[dice_game_end] Received data:", JSON.stringify(data)); // Log raw data from server
       this.gameStatus = 'completed';
-      this.updateUIFromState(data); // Update with final scores
-      // Call dialog with winner info
-      showNesDialog('Game Over!', 'success', { winnerName: data.winner, prize: data.prize }); 
+      // Update UI state - might not update scores correctly from final_scores, but update other things
+      this.updateUIFromState(data); 
+      console.log("[dice_game_end] this.players state (may not have final scores):", JSON.stringify(this.players)); // Log players state 
+      
+      // Delay the winner dialog by 4 seconds (1s animation + 3s pause)
+      setTimeout(() => {
+          // Use data.final_scores directly as it contains the correct final scores from the server event
+          const dialogOptions = { 
+              winnerName: data.winner, 
+              prize: data.prize, 
+              players: data.final_scores // Use the final_scores array from the event data
+          }; 
+          console.log("[dice_game_end setTimeout] Options being passed to showNesDialog:", JSON.stringify(dialogOptions)); // Log options just before call
+          showNesDialog('Game Over!', 'success', dialogOptions); 
+      }, 4000); 
     });
 
     this.socket.on('dice_game_cancelled', (data) => {
