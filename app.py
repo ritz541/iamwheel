@@ -1745,75 +1745,87 @@ def dice_game_countdown():
 
 @socketio.on('roll_dice')
 @rate_limit(limit=1, period=5)  # Limit to 1 roll per 5 seconds
-def handle_dice_roll(data=None):
+def handle_dice_roll(data=None): # Make data optional
     if not current_user.is_authenticated:
         return {'error': 'Authentication required'}
         
     game_data = game_state.get_game_state('dice')
-    
-    # Verify it's the current player's turn
-    current_player = game_data['players'][game_data['current_player_index']]
+
+    if game_data.get('status') != 'active':
+        return {'error': 'Game is not active'}
+        
+    current_player_index = game_data.get('current_player_index', -1)
+    if current_player_index == -1 or not game_data.get('players'):
+        return {'error': 'Invalid game state - no players or index'}
+
+    current_player = game_data['players'][current_player_index]
     if current_player['user_id'] != current_user.id:
         return {'error': 'Not your turn'}
     
-    # Process dice roll logic
-    dice1 = random.randint(1, 6)
-    dice2 = random.randint(1, 6)
-    total = dice1 + dice2
+    # Process dice roll logic - Roll only ONE die
+    roll_value = random.randint(1, 6)
     
-    # Update player's score and rolls
+    # Update player's score and rolls using state update method
+    # Need to adapt the GameState.update_game_state if it expects specific $inc/$push structure
+    # For now, let's fetch, modify, and update the whole player object (less ideal but works with current update_game_state)
     updated_players = game_data['players']
-    updated_players[game_data['current_player_index']]['score'] += total
-    updated_players[game_data['current_player_index']]['rolls'].append({
-        'round': game_data['current_round'],
-        'dice1': dice1,
-        'dice2': dice2,
-        'total': total
-    })
+    updated_players[current_player_index]['score'] = updated_players[current_player_index].get('score', 0) + roll_value
+    # Append the single roll value
+    if 'rolls' not in updated_players[current_player_index]:
+         updated_players[current_player_index]['rolls'] = []
+    updated_players[current_player_index]['rolls'].append(roll_value) 
     
-    # Update game state
+    # Update game state with modified players list and reset timer
     game_state.update_game_state({
         'players': updated_players,
         'player_timer': 10  # Reset timer for next player
     }, 'dice')
+
+    # Fetch updated player data for broadcast
+    # updated_game_data = game_state.get_game_state('dice') # Already done implicitly by update
+    updated_player_data = game_state.get_game_state('dice')['players'][current_player_index]
     
-    # Broadcast result (make sure data is serializable)
+    # Broadcast result (reflecting single die roll)
     result_data = {
-        'player': current_player['username'],
-        'dice1': dice1,
-        'dice2': dice2,
-        'total': total,
-        'current_score': current_player['score'],
+        'player': updated_player_data['username'],
+        'roll': roll_value, # Send the single roll value
+        'current_score': updated_player_data['score'],
         'round': game_data['current_round']
     }
     emit('dice_result', make_serializable(result_data), broadcast=True)
     
-    # Move to next player
-    next_player_index = (game_data['current_player_index'] + 1) % len(game_data['players'])
+    # --- Advance Turn Logic --- (Remains the same) 
+    players = updated_players # Use the modified list
+    next_player_index = (current_player_index + 1) % len(players)
+    
     game_state.update_game_state({
         'current_player_index': next_player_index
+        # Timer reset was already included in the previous update
     }, 'dice')
-    
+
+    # ... (Rest of the turn/round/game end logic remains the same) ...
     # If back to first player, check if round is complete
     if next_player_index == 0:
         if game_data['current_round'] >= 3:
             # Game over - determine winner
-            winner = max(game_data['players'], key=lambda p: p['score'])
+            winner = max(game_data['players'], key=lambda p: p.get('score', 0)) # Use .get for safety
             prize = len(game_data['players']) * 100 * 0.8
             
-            # Update winner's wallet
+            # ... (Update winner's wallet, store game results)
             db.users.update_one(
                 {'_id': ObjectId(winner['user_id'])},
                 {'$inc': {'user_data.wallet_balance': prize}}
             )
-            
-            # Store game results
+             # Ensure dice_games collection exists
+            if 'dice_games' not in db.list_collection_names():
+                db.create_collection('dice_games')
             db.dice_games.insert_one({
                 'game_id': game_data['game_id'],
-                'players': game_data['players'],
+                'players': game_data['players'], # Store final player states
                 'winner': winner['user_id'],
                 'prize': prize,
-                'created_at': datetime.now(timezone.utc),
+                'created_at': game_data.get('created_at'),
+                'completed_at': datetime.now(timezone.utc),
                 'status': 'completed'
             })
             
@@ -1821,31 +1833,30 @@ def handle_dice_roll(data=None):
             end_game_data = {
                 'winner': winner['username'],
                 'prize': prize,
-                'final_scores': [{'username': p['username'], 'score': p['score']} for p in game_data['players']]
+                'final_scores': [{'username': p['username'], 'score': p.get('score', 0)} for p in game_data['players']]
             }
-            emit('dice_game_end', make_serializable(end_game_data), broadcast=True)
+            socketio.emit('dice_game_end', make_serializable(end_game_data))
             
             # Reset game state
-            game_state.update_game_state({
-                'status': 'waiting',
-                'players': [],
-                'timer': 120,
-                'current_round': 0,
-                'current_player_index': 0
-            }, 'dice')
+            game_state.reset_game('dice')
         else:
             # Next round
+            current_round = game_data.get('current_round', 0) # Fetch current round before incrementing
             game_state.update_game_state({
-                'current_round': game_data['current_round'] + 1
+                'current_round': current_round + 1
             }, 'dice')
             
-            socketio.emit('dice_round_start', {
-                'round': game_data['current_round'] + 1
-            }, broadcast=True)
+            round_start_data = {
+                'round': current_round + 1,
+                 'status': 'active'
+            }
+            socketio.emit('dice_round_start', make_serializable(round_start_data))
+            
+    # Notify about game update after turn advance (includes new player index and timer)
+    final_state = game_state.get_game_state('dice')
+    socketio.emit('dice_game_update', make_serializable(final_state))
 
-        # Notify about game update after turn advance (includes new player index and timer)
-        final_state = game_state.get_game_state('dice')
-        emit('dice_game_update', make_serializable(final_state), broadcast=True)
+    return {'success': True} # Return success to the roller
 
 
 if __name__ == '__main__':

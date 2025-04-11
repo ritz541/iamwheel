@@ -21,6 +21,9 @@ class DiceGame {
 
     // Initial UI setup based on loaded state
     this.updateUIFromState(initialState);
+    if (this.diceElement && initialState?.last_roll) {
+        this.diceElement.textContent = initialState.last_roll; 
+    }
   }
 
   initElements() {
@@ -102,6 +105,26 @@ class DiceGame {
         console.error('Dice Game Error:', data.error);
         alert(`Error: ${data.error}`); // Show error to user
     });
+
+    // Listen for single roll result
+    this.socket.on('dice_result', (data) => {
+      console.log('Event: dice_result', data);
+      // Update the dice display immediately with the roll value
+      if (this.diceElement) {
+          this.diceElement.textContent = data.roll;
+      }
+      // Optionally update UI state partially or wait for full dice_game_update
+      // For simplicity, let full update handle player list/score
+    });
+
+    this.socket.on('dice_game_update', (data) => {
+      console.log('Event: dice_game_update', data);
+      // Update dice display if a recent roll value is included (optional)
+      // if (this.diceElement && data.last_roll) {
+      //     this.diceElement.textContent = data.last_roll;
+      // }
+      this.updateUIFromState(data);
+    });
   }
 
   updateUIFromState(state) {
@@ -119,7 +142,8 @@ class DiceGame {
     // Update UI Elements
     if (this.gameStatusElement) this.gameStatusElement.textContent = this.gameStatus;
     if (this.roundElement) this.roundElement.textContent = this.gameStarted ? this.currentRound : '-';
-    if (this.diceElement) this.diceElement.textContent = state.dice_value || '?'; // Update dice value if provided
+    // Don't reset dice display here, let dice_result handle it primarily
+    // if (this.diceElement) this.diceElement.textContent = state.dice_value || '?'; 
 
     this.updateLeaderboard();
     this.updateTimerDisplay(state.timer ?? state.player_timer ?? 0, this.gameStatus);
@@ -217,6 +241,14 @@ class DiceGame {
       scoreDisplay.className = 'player-score';
       if (this.gameStarted || this.gameEnded) {
           scoreDisplay.textContent = `Score: ${player.score || 0}`;
+          // Add roll history display (list of single numbers)
+          if (player.rolls && player.rolls.length > 0) {
+              const rollsText = player.rolls.join(', ');
+              const rollsDiv = document.createElement('div');
+              rollsDiv.className = 'player-rolls nes-text is-small';
+              rollsDiv.textContent = `Rolls: [${rollsText}]`;
+              scoreDisplay.appendChild(rollsDiv); // Append rolls below score
+          }
       } else {
           scoreDisplay.textContent = `Joined`;
       }
