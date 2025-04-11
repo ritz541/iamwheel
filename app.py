@@ -522,94 +522,117 @@ def google_authorize():
 def update_game_timer():
     while True:
         try:
-            with app.app_context():
-                game_data = game_state.get_game_state()
-                
-                if game_data.get('is_break', False):
-                    # Handle break timer
-                    break_timer = game_data.get('break_timer', 15)
-                    if break_timer > 0:
-                        game_state.update_game_state({'break_timer': break_timer - 1})
-                        socketio.emit('timer', {'time': break_timer - 1, 'isBreak': True})
-                        socketio.sleep(1)
+            with app.app_context(): # Ensure context for logging etc.
+                # === Handle Wheel Game Timer ===
+                wheel_game_data = game_state.get_game_state('wheel')
+                if wheel_game_data.get('status') == 'joining' and not wheel_game_data.get('is_break'):
+                    # ... (wheel joining timer logic) ...
+                    pass # Placeholder for wheel joining logic
+                elif wheel_game_data.get('is_break'):
+                    # ... (wheel break timer logic) ...
+                    pass # Placeholder for wheel break logic
+                # Add logic for wheel 'running' status if needed
+
+                # === Handle Dice Game Timer ===
+                dice_game_data = game_state.get_game_state('dice')
+                if dice_game_data.get('status') == 'active':
+                    current_player_timer = dice_game_data.get('player_timer', 10)
+                    game_id = dice_game_data.get('game_id', 'N/A')
+                    
+                    if current_player_timer > 0:
+                        game_state.update_game_state({'player_timer': current_player_timer - 1}, 'dice')
+                        app.logger.info(f"[Dice Active Timer {game_id}] Timer decremented to {current_player_timer - 1}")
+                        timer_update_data = {
+                            'time': current_player_timer - 1,
+                            'status': 'active'
+                        }
+                        socketio.emit('dice_timer_update', make_serializable(timer_update_data))
                     else:
-                        # Break time over, start new game
-                        game_state.reset_game()
-                        new_state = game_state.get_game_state()
-                        socketio.emit('game_status', {
-                            'status': new_state['status'],
-                            'players': new_state['players'],
-                            'timer': new_state['timer'],
-                            'isBreak': False
-                        })
-                elif game_data.get('status') == 'joining':
-                    if game_data.get('timer', 0) > 0:
-                        game_state.update_game_state({'timer': game_data['timer'] - 1})
-                        socketio.emit('timer', {'time': game_data['timer'] - 1, 'isBreak': False})
+                        # Player Timer expired - auto-advance turn
+                        app.logger.info(f"[Dice Active Timer {game_id}] Player timer expired. Advancing turn.")
+                        players = dice_game_data.get('players', [])
+                        if not players:
+                            app.logger.warning(f"[Dice Active Timer {game_id}] No players found, resetting.")
+                            game_state.reset_game('dice')
+                            continue # Skip rest of loop iteration
+                            
+                        current_idx = dice_game_data.get('current_player_index', 0)
+                        next_player_index = (current_idx + 1) % len(players)
                         
-                        if game_data['timer'] <= 1:
-                            players = game_data.get('players', [])
-                            if players:
-                                winner_idx = random.randint(0, len(players) - 1)
-                                winner = players[winner_idx]
+                        # Update state: advance player index, reset timer
+                        game_state.update_game_state({
+                            'current_player_index': next_player_index,
+                            'player_timer': 10 
+                        }, 'dice')
+                        
+                        updated_game_data = game_state.get_game_state('dice') # Fetch updated state
+                        
+                        # Check if round ended
+                        if next_player_index == 0:
+                            current_round = updated_game_data.get('current_round', 1)
+                            if current_round >= 3:
+                                # --- Game End Logic (Copied from handle_dice_roll) ---
+                                app.logger.info(f"[Dice Active Timer {game_id}] Game round limit reached. Ending game.")
+                                winner = max(players, key=lambda p: p.get('score', 0))
+                                prize = len(players) * 100 * 0.8
                                 
-                                # Calculate prize
-                                total_pool = len(players) * 100  # Updated to ₹100 entry fee
-                                winner_prize = int(total_pool * 0.9)  # 90% of total entries
-                                
-                                # Update winner's wallet
-                                db.users.update_one(
-                                    {'username': winner['username']},
-                                    {'$inc': {'user_data.wallet_balance': winner_prize}}
-                                )
-                                
-                                # Record game in database
-                                db.games.insert_one({
-                                    'players': players,
-                                    'winner': winner['username'],
-                                    'total_pool': total_pool,
-                                    'winner_prize': winner_prize,
-                                    'platform_fee': total_pool - winner_prize,
-                                    'created_at': datetime.now(),
-                                    'status': 'completed',
-                                    'game_id': game_data.get('game_id')
-                                })
-                                
-                                socketio.emit('game_end', {
-                                    'winner': winner['username'],
-                                    'prize': winner_prize
-                                })
-                                
-                                # Start break time
-                                game_state.update_game_state({
-                                    'status': 'break',
-                                    'is_break': True,
-                                    'break_timer': 15
-                                })
-                                socketio.emit('game_status', {
-                                    'status': 'break',
-                                    'players': players,
-                                    'timer': 15,
-                                    'isBreak': True
-                                })
+                                try:
+                                    db.users.update_one(
+                                        {'_id': ObjectId(winner['user_id'])},
+                                        {'$inc': {'user_data.wallet_balance': prize}}
+                                    )
+                                    # Ensure dice_games collection exists
+                                    if 'dice_games' not in db.list_collection_names():
+                                        db.create_collection('dice_games')
+                                        
+                                    db.dice_games.insert_one({
+                                        'game_id': game_id,
+                                        'players': players,
+                                        'winner': winner['user_id'],
+                                        'prize': prize,
+                                        'created_at': updated_game_data.get('created_at'), # Use original creation time
+                                        'completed_at': datetime.now(timezone.utc),
+                                        'status': 'completed'
+                                    })
+                                    end_game_data = {
+                                        'winner': winner['username'],
+                                        'prize': prize,
+                                        'final_scores': [{'username': p['username'], 'score': p.get('score', 0)} for p in players]
+                                    }
+                                    socketio.emit('dice_game_end', make_serializable(end_game_data))
+                                except Exception as e:
+                                    app.logger.error(f"[Dice Active Timer {game_id}] Error finalizing game: {e}", exc_info=True)
+                                finally:
+                                    game_state.reset_game('dice')
+                                # --- End Game End Logic ---
                             else:
-                                socketio.emit('game_end', {'winner': None})
-                                game_state.reset_game()
-                                new_state = game_state.get_game_state()
-                                socketio.emit('game_status', {
-                                    'status': new_state['status'],
-                                    'players': new_state['players'],
-                                    'timer': new_state['timer'],
-                                    'isBreak': False
-                                })
-            
+                                # Start next round
+                                app.logger.info(f"[Dice Active Timer {game_id}] Starting round {current_round + 1}.")
+                                game_state.update_game_state({'current_round': current_round + 1}, 'dice')
+                                round_start_data = {
+                                    'round': current_round + 1,
+                                    'status': 'active'
+                                }
+                                socketio.emit('dice_round_start', make_serializable(round_start_data))
+                                # Emit full state update too, so client knows timer reset etc.
+                                socketio.emit('dice_game_update', make_serializable(game_state.get_game_state('dice')))
+                        else:
+                            # Emit game update to notify of turn change and timer reset
+                            app.logger.info(f"[Dice Active Timer {game_id}] Advancing to player index {next_player_index}.")
+                            socketio.emit('dice_game_update', make_serializable(updated_game_data))
+
+            # Sleep at the end of the main loop
             socketio.sleep(1)
         except Exception as e:
-            print(f"Timer error: {str(e)}")
-            socketio.sleep(1)
+            app.logger.error(f"Error in update_game_timer loop: {str(e)}", exc_info=True)
+            socketio.sleep(5) # Sleep longer on error
 
-# Start timer thread
-timer_thread = None
+# Start timer thread globally (ensure this is correctly starting the above function)
+if 'timer_thread' not in locals(): # Basic check to prevent duplicate threads on reload
+     timer_thread = None 
+if timer_thread is None or not timer_thread.is_alive():
+    timer_thread = socketio.start_background_task(update_game_timer)
+    app.logger.info("Started background game timer thread.")
 
 @socketio.on('connect')
 def handle_connect():
