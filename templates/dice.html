@@ -15,28 +15,51 @@
         }
 
         #dice {
-            width: 100px;
-            height: 100px;
-            position: relative;
-            transition: transform 0.5s ease;
+            width: 45px;
+            height: 45px;
+            background-color: white;
+            border: 3px solid #333;
+            border-radius: 10px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 2px;
+            padding: 4px;
+            box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
         }
 
         @keyframes roll {
-            0% { transform: rotateX(0deg) rotateY(0deg); }
-            25% { transform: rotateX(180deg) rotateY(90deg); }
-            50% { transform: rotateX(270deg) rotateY(180deg); }
-            75% { transform: rotateX(180deg) rotateY(270deg); }
-            100% { transform: rotateX(360deg) rotateY(360deg); }
+            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+            10% { transform: rotateX(120deg) rotateY(30deg) rotateZ(15deg); }
+            20% { transform: rotateX(240deg) rotateY(60deg) rotateZ(30deg); }
+            30% { transform: rotateX(360deg) rotateY(90deg) rotateZ(45deg); }
+            40% { transform: rotateX(480deg) rotateY(120deg) rotateZ(60deg); }
+            50% { transform: rotateX(600deg) rotateY(150deg) rotateZ(75deg); }
+            60% { transform: rotateX(720deg) rotateY(180deg) rotateZ(90deg); }
+            70% { transform: rotateX(840deg) rotateY(210deg) rotateZ(105deg); }
+            80% { transform: rotateX(960deg) rotateY(240deg) rotateZ(120deg); }
+            90% { transform: rotateX(1080deg) rotateY(270deg) rotateZ(135deg); }
+            100% { transform: rotateX(1200deg) rotateY(300deg) rotateZ(150deg); }
         }
 
         .rolling {
-            animation: roll 0.5s ease;
+            animation: roll 1s cubic-bezier(0.17, 0.67, 0.83, 0.67) both;
         }
 
-        #dice svg {
-            width: 100%;
-            height: 100%;
-            filter: drop-shadow(3px 3px 3px rgba(0,0,0,0.3));
+        /* Dot styling for inline use */
+        .dot {
+            width: 7px;
+            height: 7px;
+            background-color: black;
+            border-radius: 50%;
+            margin: auto;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .show {
+            opacity: 1;
         }
     </style>
 {% endblock %}
@@ -56,10 +79,33 @@
             </div>
 
             <div class="dice-area mb-3">
-                <div id="dice" class="nes-container is-rounded">
-                    <!-- SVG will be inserted here by JavaScript -->
+                <div id="add-dice"></div>
+                <div id="dice" data-limits="(Limit 1 to 5 dice)">
+                    <!-- Dice will be added dynamically -->
+                </div>
+                <div id="single-dice" class="mb-3" style="display: none;">
+                    <div class="dot" id="d1"></div>
+                    <div class="dot" id="d2"></div>
+                    <div class="dot" id="d3"></div>
+                    <div class="dot" id="d4"></div>
+                    <div class="dot" id="d5"></div>
+                    <div class="dot" id="d6"></div>
+                    <div class="dot" id="d7"></div>
+                    <div class="dot" id="d8"></div>
+                    <div class="dot" id="d9"></div>
                 </div>
             </div>
+            
+            <template id="die">
+                <div class="die-6 adding" onclick="removeDie(this)">
+                    <div class="dot-tl"></div>
+                    <div class="dot-tr"></div>
+                    <div class="dot-ml"></div>
+                    <div class="dot-mr"></div>
+                    <div class="dot-bl"></div>
+                    <div class="dot-br"></div>
+                </div>
+            </template>
             
             <div id="game-controls" class="mb-3">
                 <!-- Buttons will be dynamically updated by JS -->
@@ -85,5 +131,6 @@
     const initialGameState = JSON.parse('{{ initial_game_state | safe }}'); 
     const currentUserId = '{{ current_user.id | safe if current_user.is_authenticated else "null" }}'; 
 </script>
+<script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
 <script src="{{ url_for('static', filename='js/dice.js') }}"></script>
 {% endblock %}

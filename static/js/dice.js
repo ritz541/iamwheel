@@ -1,4 +1,8 @@
 // Multiplayer Dice Game Logic
+// Constants for dice management
+const MIN_DICE = 1;
+const MAX_DICE = 5;
+
 class DiceGame {
   constructor(initialState, socketInstance) {
     console.log("Initializing DiceGame with state:", initialState);
@@ -11,6 +15,8 @@ class DiceGame {
     this.maxRounds = 3;
     this.entryFee = 100;
     this.diceValue = initialState?.last_roll || 0;
+    this.diceCount = 1; // Only one die as per requirement
+    this.diceValues = []; // Store individual dice values
 
     // Determine initial button states
     this.gameStarted = this.gameStatus === 'active';
@@ -24,10 +30,15 @@ class DiceGame {
     if (initialState?.last_roll) {
         this.updateDiceDisplay(initialState.last_roll);
     }
+    
+    // Initialize dice
+    this.loadDice();
   }
 
   initElements() {
-    this.diceElement = document.getElementById('dice');
+    this.diceContainer = document.getElementById('dice');
+    this.singleDiceElement = document.getElementById('single-dice');
+    this.addDiceBtn = document.getElementById('add-dice');
     this.rollBtn = document.getElementById('roll-btn');
     this.joinBtn = document.getElementById('join-game-btn');
     this.createBtn = document.getElementById('create-game-btn');
@@ -37,131 +48,165 @@ class DiceGame {
     this.gameStatusElement = document.getElementById('game-status');
     this.roundElement = document.getElementById('current-round');
     
-    // Initialize the dice SVG
-    this.initDiceSVG();
+    // Initialize the dot map for single dice
+    this.initDotMap();
+    
+    // Hide the add dice button since we only want one dice
+    if (this.addDiceBtn) {
+      this.addDiceBtn.style.display = 'none';
+    }
   }
   
-  initDiceSVG() {
-    // Replace the text with SVG
-    const diceSVG = `
-      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <!-- Dice face background -->
-        <rect x="5" y="5" width="90" height="90" rx="15" ry="15" fill="white" stroke="black" stroke-width="2" />
-        
-        <!-- Dice dots for all faces -->
-        <g id="face1">
-          <!-- Center dot -->
-          <circle id="center-dot" cx="50" cy="50" r="8" fill="black" />
-        </g>
-        
-        <g id="face2" style="display:none">
-          <!-- Top-left dot -->
-          <circle cx="25" cy="25" r="8" fill="black" />
-          <!-- Bottom-right dot -->
-          <circle cx="75" cy="75" r="8" fill="black" />
-        </g>
-        
-        <g id="face3" style="display:none">
-          <!-- Top-left dot -->
-          <circle cx="25" cy="25" r="8" fill="black" />
-          <!-- Center dot -->
-          <circle cx="50" cy="50" r="8" fill="black" />
-          <!-- Bottom-right dot -->
-          <circle cx="75" cy="75" r="8" fill="black" />
-        </g>
-        
-        <g id="face4" style="display:none">
-          <!-- Top-left dot -->
-          <circle cx="25" cy="25" r="8" fill="black" />
-          <!-- Top-right dot -->
-          <circle cx="75" cy="25" r="8" fill="black" />
-          <!-- Bottom-left dot -->
-          <circle cx="25" cy="75" r="8" fill="black" />
-          <!-- Bottom-right dot -->
-          <circle cx="75" cy="75" r="8" fill="black" />
-        </g>
-        
-        <g id="face5" style="display:none">
-          <!-- Top-left dot -->
-          <circle cx="25" cy="25" r="8" fill="black" />
-          <!-- Top-right dot -->
-          <circle cx="75" cy="25" r="8" fill="black" />
-          <!-- Center dot -->
-          <circle cx="50" cy="50" r="8" fill="black" />
-          <!-- Bottom-left dot -->
-          <circle cx="25" cy="75" r="8" fill="black" />
-          <!-- Bottom-right dot -->
-          <circle cx="75" cy="75" r="8" fill="black" />
-        </g>
-        
-        <g id="face6" style="display:none">
-          <!-- Top-left dot -->
-          <circle cx="25" cy="25" r="8" fill="black" />
-          <!-- Top-right dot -->
-          <circle cx="75" cy="25" r="8" fill="black" />
-          <!-- Middle-left dot -->
-          <circle cx="25" cy="50" r="8" fill="black" />
-          <!-- Middle-right dot -->
-          <circle cx="75" cy="50" r="8" fill="black" />
-          <!-- Bottom-left dot -->
-          <circle cx="25" cy="75" r="8" fill="black" />
-          <!-- Bottom-right dot -->
-          <circle cx="75" cy="75" r="8" fill="black" />
-        </g>
-      </svg>
-    `;
+  initDotMap() {
+    // Define the dot positions for each dice face (1-6)
+    this.dotMap = {
+      1: [5],
+      2: [1, 9],
+      3: [1, 5, 9],
+      4: [1, 3, 7, 9],
+      5: [1, 3, 5, 7, 9],
+      6: [1, 3, 4, 6, 7, 9],
+    };
     
-    // Replace the content of the dice element
-    this.diceElement.innerHTML = diceSVG;
-    
-    // Set initial display to question mark (no face shown)
-    this.hideAllDiceFaces();
+    // Hide all dots initially
+    this.hideAllDots();
   }
   
-  hideAllDiceFaces() {
-    // Hide all dice faces
+  hideAllDots() {
+    // Hide all dots
     if (this.diceElement) {
-      const svg = this.diceElement.querySelector('svg');
-      if (svg) {
-        for (let i = 1; i <= 6; i++) {
-          const face = svg.querySelector(`#face${i}`);
-          if (face) {
-            face.style.display = 'none';
-          }
-        }
+      const dots = this.diceElement.querySelectorAll('.dot');
+      console.log("Found dots to hide:", dots.length);
+      dots.forEach(dot => {
+        dot.classList.remove('show');
+      });
+    } else {
+      console.warn("Cannot hide dots: dice element not found");
+    }
+  }
+  
+  loadDice() {
+    // Show the single dice element and set it as the active dice element
+    if (this.singleDiceElement) {
+      // First, ensure the dice container is ready
+      if (this.diceContainer) {
+        this.diceContainer.innerHTML = '';
       }
+      
+      // Set up the single dice element
+      this.singleDiceElement.style.display = 'grid';
+      this.diceElement = this.singleDiceElement;
+      
+      // Apply the dice styling to match the design
+      this.diceElement.style.width = '60px';
+      this.diceElement.style.height = '60px';
+      this.diceElement.style.backgroundColor = 'white';
+      this.diceElement.style.border = '3px solid #333';
+      this.diceElement.style.borderRadius = '10px';
+      this.diceElement.style.display = 'grid';
+      this.diceElement.style.gridTemplateColumns = 'repeat(3, 1fr)';
+      this.diceElement.style.gridTemplateRows = 'repeat(3, 1fr)';
+      this.diceElement.style.gap = '2px';
+      this.diceElement.style.padding = '4px';
+      this.diceElement.style.boxShadow = '3px 3px 8px rgba(0, 0, 0, 0.2)';
+      this.diceElement.style.transition = 'transform 0.3s ease';
+      
+      // Clear existing dots and recreate them
+      this.diceElement.innerHTML = '';
+      console.log("Creating dot elements for dice");
+      for (let i = 1; i <= 9; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dot.id = 'd' + i;
+        this.diceElement.appendChild(dot);
+      }
+      
+      // Hide the add dice button
+      if (this.addDiceBtn) {
+        this.addDiceBtn.style.display = 'none';
+      }
+      
+      // Add the dice to the container
+      if (this.diceContainer) {
+        this.diceContainer.appendChild(this.diceElement);
+      }
+      
+      // Add the CSS file for dice animation
+      if (!document.querySelector('link[href*="dice-fix.css"]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = '/static/css/dice-fix.css';
+        document.head.appendChild(link);
+      }
+      
+      console.log("Dice initialized with", this.diceElement.querySelectorAll('.dot').length, "dots");
+    } else {
+      console.error("Single dice element not found");
     }
   }
   
   updateDiceDisplay(value) {
-    if (!this.diceElement) return;
+    if (!this.diceElement) {
+      console.error("Cannot update dice: dice element not found");
+      return;
+    }
+    
+    console.log("Updating dice display with value:", value);
     
     // Record the dice value
     this.diceValue = value;
     
-    // Hide all faces
-    this.hideAllDiceFaces();
+    // Reset - hide all dots
+    this.hideAllDots();
     
-    // Get the SVG element
-    const svg = this.diceElement.querySelector('svg');
-    if (!svg) return;
-    
-    // Show the appropriate face based on the roll
-    if (value >= 1 && value <= 6) {
-      const face = svg.querySelector(`#face${value}`);
-      if (face) {
-        face.style.display = 'block';
+    // Make sure we have dots in the dice
+    if (this.diceElement.querySelectorAll('.dot').length === 0) {
+      console.log("Recreating dots for dice display");
+      for (let i = 1; i <= 9; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dot.id = 'd' + i;
+        this.diceElement.appendChild(dot);
       }
-    } else {
-      // Show question mark if value is invalid
-      // For now, we'll just leave all faces hidden
     }
     
-    // Add a rolling animation
+    // First remove any existing rolling class to reset animation
+    this.diceElement.classList.remove('rolling');
+    
+    // Force a reflow to ensure the animation restarts
+    void this.diceElement.offsetWidth;
+    
+    // Add the rolling class for 3D animation
     this.diceElement.classList.add('rolling');
+    
+    // After animation completes, show the correct dots
     setTimeout(() => {
+      // Show the appropriate dots based on the roll
+      if (value >= 1 && value <= 6) {
+        const showDots = this.dotMap[value];
+        console.log("Showing dots for value", value, "positions:", showDots);
+        
+        // First ensure all dots are hidden
+        this.diceElement.querySelectorAll('.dot').forEach(dot => {
+          dot.classList.remove('show');
+        });
+        
+        // Then show only the dots for this value
+        showDots.forEach(pos => {
+          // Find the dot within the dice element
+          const dot = this.diceElement.querySelector("#d" + pos);
+          if (dot) {
+            dot.classList.add("show");
+            console.log("Showing dot:", pos);
+          } else {
+            console.warn("Dot element not found for position:", pos);
+          }
+        });
+      }
+      
+      // Keep the dice in its final position
       this.diceElement.classList.remove('rolling');
-    }, 500);
+    }, 1000);
   }
   
   setupEventListeners() {

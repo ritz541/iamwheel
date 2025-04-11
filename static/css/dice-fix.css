@@ -1,0 +1,39 @@
+/* Fix for dice animation and dot display */
+
+/* Ensure dice has proper 3D perspective */
+.dice-area {
+  perspective: 600px;
+}
+
+#single-dice {
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease;
+}
+
+/* Ensure dots are visible when shown */
+.dot {
+  width: 8px;
+  height: 8px;
+  background-color: black;
+  border-radius: 50%;
+  margin: auto;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.dot.show {
+  opacity: 1;
+}
+
+/* Enhanced rolling animation */
+@keyframes roll {
+  0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  25% { transform: rotateX(90deg) rotateY(45deg) rotateZ(45deg); }
+  50% { transform: rotateX(180deg) rotateY(90deg) rotateZ(90deg); }
+  75% { transform: rotateX(270deg) rotateY(135deg) rotateZ(135deg); }
+  100% { transform: rotateX(360deg) rotateY(180deg) rotateZ(180deg); }
+}
+
+.rolling {
+  animation: roll 1s ease-out;
+}
