@@ -20,6 +20,7 @@ import razorpay
 from authlib.integrations.flask_client import OAuth
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from pymongo.collection import ReturnDocument
 
 # Load environment variables
 load_dotenv()
@@ -522,16 +523,105 @@ def google_authorize():
 def update_game_timer():
     while True:
         try:
-            with app.app_context(): # Ensure context for logging etc.
+            with app.app_context(): 
                 # === Handle Wheel Game Timer ===
                 wheel_game_data = game_state.get_game_state('wheel')
-                if wheel_game_data.get('status') == 'joining' and not wheel_game_data.get('is_break'):
-                    # ... (wheel joining timer logic) ...
-                    pass # Placeholder for wheel joining logic
-                elif wheel_game_data.get('is_break'):
-                    # ... (wheel break timer logic) ...
-                    pass # Placeholder for wheel break logic
-                # Add logic for wheel 'running' status if needed
+                
+                if wheel_game_data.get('is_break'):
+                    # Handle break timer
+                    break_timer = wheel_game_data.get('break_timer', 15)
+                    if break_timer > 0:
+                        game_state.update_game_state({'break_timer': break_timer - 1}, 'wheel')
+                        # Use the specific 'timer' event for wheel game?
+                        socketio.emit('timer', {'time': break_timer - 1, 'isBreak': True})
+                        app.logger.debug(f"[Wheel Timer] Break timer: {break_timer - 1}")
+                    else:
+                        # Break time over, start new game
+                        app.logger.info("[Wheel Timer] Break ended. Resetting wheel game.")
+                        game_state.reset_game('wheel')
+                        new_state = game_state.get_game_state('wheel')
+                        # Use specific 'game_status' event for wheel game? Make serializable.
+                        serializable_state = make_serializable(new_state)
+                        socketio.emit('game_status', serializable_state)
+                elif wheel_game_data.get('status') == 'joining':
+                    # Handle joining timer
+                    join_timer = wheel_game_data.get('timer', 90)
+                    if join_timer > 0:
+                        # Decrement timer first
+                        new_timer_value = join_timer - 1
+                        game_state.update_game_state({'timer': new_timer_value}, 'wheel')
+
+                        # Always emit the timer update
+                        socketio.emit('timer', {'time': new_timer_value, 'isBreak': False})
+                        app.logger.debug(f"[Wheel Timer] Joining timer: {new_timer_value}")
+
+                        # Change status to running in last seconds (e.g., 10s) WITHOUT re-checking status
+                        # Check based on the *new* timer value
+                        if new_timer_value == 10 and wheel_game_data.get('status') == 'joining':
+                            game_state.update_game_state({'status': 'running'}, 'wheel')
+                            app.logger.info("[Wheel Timer] Wheel game status changed to running at 10 seconds.")
+                            # Emit status update - Make serializable
+                            # Fetch the updated state *after* status change
+                            serializable_state = make_serializable(game_state.get_game_state('wheel'))
+                            socketio.emit('game_status', serializable_state)
+                    else: # Timer reached 0 while status was still 'joining' (should ideally not happen with the change above)
+                        # Joining timer expired, select winner
+                        app.logger.info("[Wheel Timer] Joining timer expired at 0. Selecting winner.")
+                        game_state.update_game_state({'status': 'running'}, 'wheel') # Ensure status is running before selecting winner
+
+                        winner = select_winner() # select_winner handles DB updates & prize
+                        if winner:
+                            app.logger.info(f"[Wheel Timer] Winner selected: {winner.get('username')}")
+                            # select_winner should return serializable data including prize/balance
+                            socketio.emit('winner_selected', make_serializable(winner))
+                        else:
+                            app.logger.info("[Wheel Timer] No winner selected (no players/bets?).")
+                            # Make sure this payload is also serializable
+                            socketio.emit('game_end', make_serializable({'winner': None}))
+
+                        # Start break time after winner selection/no winner
+                        game_state.update_game_state({
+                            'status': 'break',
+                            'is_break': True,
+                            'break_timer': 15
+                        }, 'wheel')
+                        # Emit break status - Make serializable
+                        serializable_state = make_serializable(game_state.get_game_state('wheel'))
+                        socketio.emit('game_status', serializable_state)
+                elif wheel_game_data.get('status') == 'running': # Add a new condition for 'running' status
+                    # Handle running timer (after it was set to 'running' at 10s)
+                    running_timer = wheel_game_data.get('timer', 0) # Get current timer value
+                    if running_timer > 0:
+                        # Decrement timer
+                        new_timer_value = running_timer - 1
+                        game_state.update_game_state({'timer': new_timer_value}, 'wheel')
+
+                        # Emit timer update
+                        socketio.emit('timer', {'time': new_timer_value, 'isBreak': False})
+                        app.logger.debug(f"[Wheel Timer] Running timer: {new_timer_value}")
+                    else:
+                        # Running timer expired, select winner
+                        app.logger.info("[Wheel Timer] Running timer expired. Selecting winner.")
+
+                        winner = select_winner() # select_winner handles DB updates & prize
+                        if winner:
+                            app.logger.info(f"[Wheel Timer] Winner selected: {winner.get('username')}")
+                            # select_winner should return serializable data including prize/balance
+                            socketio.emit('winner_selected', make_serializable(winner))
+                        else:
+                            app.logger.info("[Wheel Timer] No winner selected (no players/bets?).")
+                            # Make sure this payload is also serializable
+                            socketio.emit('game_end', make_serializable({'winner': None}))
+
+                        # Start break time after winner selection/no winner
+                        game_state.update_game_state({
+                            'status': 'break',
+                            'is_break': True,
+                            'break_timer': 15
+                        }, 'wheel')
+                        # Emit break status - Make serializable
+                        serializable_state = make_serializable(game_state.get_game_state('wheel'))
+                        socketio.emit('game_status', serializable_state)
 
                 # === Handle Dice Game Timer ===
                 dice_game_data = game_state.get_game_state('dice')
@@ -712,73 +802,128 @@ def handle_join_game():
     emit('join_game_response', {'success': True, 'message': 'Successfully joined the game'})
 
 def select_winner():
-    game_data = game_state.get_game_state()
-    if not game_data.get('players'):
+    game_data = game_state.get_game_state() # Wheel game default
+    game_id_log = game_data.get('game_id', 'N/A')
+    app.logger.info(f"[select_winner {game_id_log}] Attempting to select winner.")
+    
+    players = game_data.get('players', [])
+    if not players:
+        app.logger.warning(f"[select_winner {game_id_log}] No players in game state.")
         return None
     
-    winner = random.choice(game_data['players'])
-    total_players = len(game_data['players'])
-    total_pool = total_players * 100  # Each player contributes 100
-    prize_money = int(total_pool * 0.9)  # 90% of total entries as per the game description
+    try:
+        winner = random.choice(players)
+        app.logger.info(f"[select_winner {game_id_log}] Randomly selected winner: {winner.get('username', 'N/A')}")
+    except IndexError:
+        app.logger.warning(f"[select_winner {game_id_log}] Player list was unexpectedly empty during random.choice.")
+        return None
+        
+    total_players = len(players)
+    total_pool = total_players * 100  
+    prize_money = int(total_pool * 0.9)
+
+    winner_user_id_str = winner.get('id')
+    if not winner_user_id_str:
+        app.logger.error(f"[select_winner {game_id_log}] Winner dictionary missing 'id': {winner}")
+        return None # Cannot proceed without winner ID
+        
+    try:
+        winner_user_id_obj = ObjectId(winner_user_id_str)
+    except Exception as e:
+        app.logger.error(f"[select_winner {game_id_log}] Invalid winner ID format '{winner_user_id_str}': {e}")
+        return None # Cannot proceed with invalid ID format
 
     try:
         # Store game details in games collection
         game_record = {
-            'timestamp': datetime.utcnow(),
-            'participants': game_data['players'],
+            'timestamp': datetime.utcnow(), # Use UTC consistently
+            'participants': players, # Store the list of player dicts
             'participant_count': total_players,
-            'prize_pool': total_pool,  # Store the total pool amount
+            'prize_pool': total_pool,  
             'winner': {
-                'id': winner['id'],
-                'username': winner['username'],
-                'emoji': winner['emoji']
+                'id': winner_user_id_str, # Store as string
+                'username': winner.get('username'), # Use .get
+                'emoji': winner.get('emoji')    # Use .get
             },
-            'entry_fee': 100
+            'entry_fee': 100,
+            'game_id': game_data.get('game_id'), # Get game_id from state
+            'game_type': 'wheel',
+            'status': 'completed' # Mark as completed
         }
         result = db.games.insert_one(game_record)
-        game_id = result.inserted_id
+        db_game_id = result.inserted_id
+        app.logger.info(f"[select_winner {game_id_log}] Game record created in DB with ID: {db_game_id}")
 
         # Add game reference to each participant's history
-        participant_ids = [ObjectId(p['id']) for p in game_data['players']]
+        participant_ids = []
+        for p in players:
+            p_id_str = p.get('id')
+            if p_id_str:
+                try:
+                    participant_ids.append(ObjectId(p_id_str))
+                except Exception:
+                    app.logger.warning(f"[select_winner {game_id_log}] Skipping invalid participant ID format '{p_id_str}' for game history update.")
+            else:
+                 app.logger.warning(f"[select_winner {game_id_log}] Participant missing 'id' in player data: {p}")
         
-        # Update all participants with game record
-        db.users.update_many(
-            {'_id': {'$in': participant_ids}},
-            {'$push': {
-                'game_history': {
-                    'game_id': game_id,
-                    'timestamp': game_record['timestamp'],
-                    'won': False,
-                    'prize_pool': total_pool,
-                    'prize_money': prize_money
-                }
-            }}
-        )
+        if participant_ids:
+            db.users.update_many(
+                {'_id': {'$in': participant_ids}},
+                {'$push': {
+                    'game_history': {
+                        'game_id': db_game_id, # Use the DB game ID
+                        'timestamp': game_record['timestamp'],
+                        'won': False, # Default to false
+                        'prize_pool': total_pool,
+                        'prize_money': prize_money,
+                        'game_type': 'wheel' # Add game type for clarity
+                    }
+                }}
+            )
+            app.logger.info(f"[select_winner {game_id_log}] Updated game history for {len(participant_ids)} participants.")
         
         # Update winner's game history and wallet
-        winner_update = db.users.find_one_and_update(
-            {'_id': ObjectId(winner['id'])},
-            {
-                '$set': {
-                    'game_history.$[elem].won': True
-                },
-                '$inc': {
-                    'user_data.wallet_balance': prize_money
-                }
-            },
-            array_filters=[{'elem.game_id': game_id}],
-            return_document=True
+        winner_update_result = db.users.find_one_and_update(
+            {'_id': winner_user_id_obj},
+            [
+                 {'$set': {
+                     'user_data.wallet_balance': {'$add': ['$user_data.wallet_balance', prize_money]},
+                     'game_history': {
+                         '$map': {
+                             'input': '$game_history',
+                             'as': 'hist',
+                             'in': {
+                                 '$cond': {
+                                      'if': {'$eq': ['$$hist.game_id', db_game_id]},
+                                      'then': {'$mergeObjects': ['$$hist', {'won': True}]},
+                                      'else': '$$hist'
+                                 }
+                             }
+                         }
+                     }
+                 }}
+            ],
+            return_document=ReturnDocument.AFTER # Get the updated document
         )
 
-        # Add wallet balance to winner data for frontend
-        winner['wallet_balance'] = winner_update['user_data']['wallet_balance']
-        winner['prize'] = prize_money
+        if not winner_update_result:
+            app.logger.error(f"[select_winner {game_id_log}] Failed to find and update winner user {winner_user_id_str} after winning.")
+            # Decide how to handle - maybe the prize wasn't awarded?
+            # For now, return winner dict without updated balance
+            winner['prize'] = prize_money
+            winner['wallet_balance'] = 'Error updating'
+        else:
+            app.logger.info(f"[select_winner {game_id_log}] Winner {winner_user_id_str} updated successfully.")
+            # Add wallet balance to winner data for frontend
+            winner['wallet_balance'] = winner_update_result.get('user_data', {}).get('wallet_balance', 'N/A')
+            winner['prize'] = prize_money
 
-        print(f"Game completed - Winner: {winner['username']}, Prize: {prize_money}")
-        return winner
+        app.logger.info(f"[select_winner {game_id_log}] Winner processing complete. Winner: {winner.get('username', 'N/A')}, Prize: {prize_money}")
+        # Ensure final returned dict is serializable
+        return make_serializable(winner) 
 
     except Exception as e:
-        print(f"Error in select_winner: {str(e)}")
+        app.logger.error(f"[select_winner {game_id_log}] Unexpected error during winner processing: {str(e)}", exc_info=True)
         return None
 
 @app.route('/')

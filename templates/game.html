@@ -45,146 +45,218 @@
     </div>
 </div>
 
-<script>
-// WebSocket setup
-const socket = io();
-
-socket.on('connect', () => {
-    console.log('Connected to WebSocket');
-    socket.emit('join_game_page'); // Notify server we are on the game page
-});
-
-socket.on('disconnect', () => {
-    console.log('Disconnected from WebSocket');
-});
-
-socket.on('game_state', (state) => {
-    updateGameState(state);
-    updatePlayersList(state.players);
-    updateCountdown(state.time_remaining);
-});
-
-socket.on('game_result', (result) => {
-    console.log('Game Result:', result);
-    if (result && result.winner && result.prize_pool !== undefined) { 
-        showWinnerPopup(result);
-    } else {
-        console.error("Received incomplete game result:", result);
-    }
-    setTimeout(() => {
-        loadGameHistory();
-    }, 1000);
-});
-
-socket.on('notification', (data) => {
-    showNotification(data.message, data.type || 'info');
-});
-
-function updateGameState(state) {
-    const gameStatus = document.querySelector('.game-status');
-    if (state.status === 'waiting') {
-        gameStatus.textContent = 'Waiting for players...';
-        gameStatus.className = 'game-status nes-container is-rounded mt-3 text-center';
-    } else if (state.status === 'running') {
-        gameStatus.textContent = 'Game in progress!';
-        gameStatus.className = 'game-status nes-container is-rounded mt-3 text-center';
-        // Start wheel animation if needed
-    } else if (state.status === 'finished') {
-        gameStatus.textContent = `Game finished! Winner: ${state.winner ? state.winner.username : 'Unknown'}`;
-        gameStatus.className = 'game-status nes-container is-rounded mt-3 text-center';
-    }
-    
-    // Enable/disable join button
-    const joinButton = document.getElementById('joinGame');
-    if (state.status === 'waiting') {
-        joinButton.disabled = false;
-        joinButton.textContent = 'Join Game (₹100)';
-    } else {
-        joinButton.disabled = true;
-        joinButton.textContent = 'Game in Progress';
-    }
-}
-
-function updatePlayersList(players) {
-    const playersList = document.querySelector('.players-list');
-    playersList.innerHTML = ''; // Clear previous list
-
-    const playerCount = Object.keys(players).length;
-
-    if (playerCount === 0) {
-        playersList.innerHTML = '<li class="text-center">No players yet</li>';
-        return;
-    }
-
-    for (const id in players) {
-        const player = players[id];
-        const playerItem = document.createElement('li');
-        playerItem.innerHTML = `${player.emoji || '❓'} ${player.username || 'Player'} ${player.is_turn ? '🎯 Spinning' : ''}`;
-        playersList.appendChild(playerItem);
-    }
-}
-
-function updateCountdown(seconds) {
-    const countdownElement = document.getElementById('countdown');
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    countdownElement.textContent = `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
-}
-
-// Join Game Button
-document.getElementById('joinGame').addEventListener('click', () => {
-    socket.emit('join_game');
-});
-
-// Winner Popup
-function showWinnerPopup(result) { 
-    if (!result || !result.winner) return;
-
-    const winner = result.winner;
-    const prizeAmount = result.prize_pool; 
-
-    // Format the prize amount as currency
-    const formattedPrize = new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR'
-    }).format(prizeAmount);
-
-    const popup = document.createElement('div');
-    popup.className = 'winner-popup'; // Ensure this class is styled in wheel.css
-    popup.innerHTML = `
-        <h2 class="title">Winner!</h2>
-        <div class="emoji">${winner.emoji || '❓'}</div>
-        <h3 class="player-name">${winner.username || 'Unknown'}</h3>
-        <p class="prize">Won ${formattedPrize}!</p>
-        <button onclick="this.parentElement.remove()">Close</button>
-    `;
-    document.body.appendChild(popup);
-    
-    // Auto-remove popup after a delay
-    setTimeout(() => popup.remove(), 6000); 
-}
-
-// Notification
-function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `game-notification alert alert-${type}`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
-}
-
-// Initial state update
-socket.on('initial_state', (state) => {
-    updateGameState(state);
-    updatePlayersList(state.players);
-    updateCountdown(state.time_remaining);
-});
-</script>
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+{# Add wheel-specific JS #}
 <script src="{{ url_for('static', filename='js/wheel.js') }}"></script>
+
+{# Move inline script logic to wheel.js or keep it here AFTER socket.io is loaded #}
+<script>
+// Ensure this runs AFTER base.html loads socket.io
+document.addEventListener('DOMContentLoaded', (event) => {
+    if (typeof io === 'undefined') {
+        console.error("Socket.IO client library not found. Check base.html.");
+        alert("Error connecting to game server. Please refresh.");
+        return;
+    }
+    
+    // WebSocket setup
+    const socket = io();
+
+    socket.on('connect', () => {
+        console.log('Connected to WebSocket');
+        // No need to emit 'join_game_page' if handled by connect on backend
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Disconnected from WebSocket');
+    });
+
+    socket.on('game_status', (state) => { // Listen for the correct event name
+        console.log('Received game_status:', state);
+        updateGameState(state);
+        updatePlayersList(state.players);
+        updateCountdown(state.timer || state.break_timer); // Use timer or break_timer
+    });
+
+    socket.on('winner_selected', (winnerData) => { // Listen for the correct event name, parameter renamed for clarity
+        console.log('Game Result (winner_selected):', winnerData);
+        // Check for prize directly on the received object
+        if (winnerData && winnerData.prize !== undefined) {
+            showWinnerPopup(winnerData); // Pass the winner data directly
+        } else {
+            console.error("Received incomplete winner result:", winnerData);
+        }
+        // Maybe trigger a UI reset or wait for game_status update
+    });
+    
+    socket.on('game_end', (result) => { // Listen for game_end (no winner case)
+        console.log('Game End (no winner):', result);
+        // Update status to show game ended, potentially clear winner display
+        const gameStatus = document.querySelector('.game-status');
+        if (gameStatus) gameStatus.textContent = 'Game ended. No winner.';
+    });
+
+    socket.on('notification', (data) => {
+        showNotification(data.message, data.type || 'info');
+    });
+    
+    socket.on('player_joined', (data) => {
+        console.log('Player joined:', data);
+        // Update players list, maybe show a notification
+        if (data.players) updatePlayersList(data.players);
+        if (data.message) showNotification(data.message, 'success');
+    });
+
+    socket.on('join_game_response', (data) => {
+        console.log('Join Game Response:', data);
+        if (!data.success) {
+            showNotification(data.message || 'Failed to join game', 'error');
+        }
+    });
+
+    function updateGameState(state) {
+        const gameStatus = document.querySelector('.game-status');
+        const joinButton = document.getElementById('joinGame');
+        if (!gameStatus || !joinButton) return;
+
+        if (state.status === 'joining') {
+            gameStatus.textContent = 'Waiting for players...';
+            joinButton.disabled = false;
+            joinButton.textContent = 'Join Game (₹100)';
+        } else if (state.status === 'running') {
+            gameStatus.textContent = 'Game in progress! Spinning...';
+            joinButton.disabled = true;
+            joinButton.textContent = 'Spinning...';
+            // Add wheel animation trigger here if applicable
+        } else if (state.status === 'break') {
+             gameStatus.textContent = 'Next game starting soon...';
+             joinButton.disabled = true;
+             joinButton.textContent = 'Game Break';
+        } else {
+            gameStatus.textContent = state.status; // Display other statuses directly
+             joinButton.disabled = true;
+        }
+    }
+
+    function updatePlayersList(players) {
+        const playersList = document.querySelector('.players-list');
+        if (!playersList) return;
+        playersList.innerHTML = ''; // Clear previous list
+
+        if (!players || players.length === 0) {
+            playersList.innerHTML = '<li class="text-center">No players yet</li>';
+            return;
+        }
+
+        players.forEach(player => {
+            const playerItem = document.createElement('li');
+            // Use player.emoji and player.username directly
+            playerItem.innerHTML = `${player.emoji || '👤'} ${player.username || 'Player'}`;
+            playersList.appendChild(playerItem);
+        });
+    }
+
+    function updateCountdown(seconds) {
+        const countdownElement = document.getElementById('countdown');
+        if (!countdownElement) return;
+        seconds = seconds ?? 0; // Default to 0 if undefined
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        countdownElement.textContent = `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+    }
+
+    // Join Game Button
+    const joinButton = document.getElementById('joinGame');
+    if (joinButton) {
+        joinButton.addEventListener('click', () => {
+            socket.emit('join_game');
+        });
+    }
+
+    // Winner Popup
+    function showWinnerPopup(winnerData) { // Parameter renamed
+        // Check the passed object directly for winner info and prize
+        if (!winnerData || winnerData.prize === undefined) {
+            console.error("showWinnerPopup called with invalid data:", winnerData);
+            return;
+        }
+        const winner = winnerData; // Use the data directly
+        const prizeAmount = winner.prize; // Prize should be in the winner object
+
+        const formattedPrize = new Intl.NumberFormat('en-IN', {
+            style: 'currency',
+            currency: 'INR'
+        }).format(prizeAmount || 0);
+
+        // Remove existing popups first
+        document.querySelectorAll('.winner-popup').forEach(el => el.remove());
+
+        const popup = document.createElement('div');
+        popup.className = 'winner-popup nes-dialog is-rounded'; // Use NES dialog style
+        popup.innerHTML = `
+            <form method="dialog" style="text-align: center;">
+                <p class="title">Winner!</p>
+                <p class="emoji" style="font-size: 3rem;">${winner.emoji || '🏆'}</p>
+                <p class="player-name">${winner.username || 'Unknown'}</p>
+                <p class="prize nes-text is-success">Won ${formattedPrize}!</p>
+                <menu class="dialog-menu">
+                    <button class="nes-btn is-primary">OK</button>
+                </menu>
+            </form>
+        `;
+        document.body.appendChild(popup);
+        // Show the dialog (if using <dialog> element)
+        if (typeof popup.showModal === "function") {
+             popup.showModal();
+        } else {
+            // Fallback for simple div
+            popup.style.display = 'block';
+            // Add a click listener to the button to close it
+            popup.querySelector('button').addEventListener('click', () => popup.remove());
+        }
+        
+        // Auto-remove popup after a delay
+        setTimeout(() => {
+            if (typeof popup.close === "function") {
+                popup.close(); 
+            }
+            popup.remove();
+        }, 6000); 
+    }
+
+    // Notification
+    function showNotification(message, type = 'info') {
+        const alertType = (type === 'error') ? 'is-error' : (type === 'success') ? 'is-success' : 'is-primary';
+        const notification = document.createElement('div');
+        // Position fixed at top-right or similar
+        notification.style.position = 'fixed';
+        notification.style.top = '20px';
+        notification.style.right = '20px';
+        notification.style.zIndex = '1050';
+        notification.className = `nes-container is-rounded ${alertType}`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 4000);
+    }
+
+    // Request initial state explicitly after connection established
+    socket.on('connect', () => {
+        console.log('Requesting initial wheel game state...');
+        socket.emit('get_initial_wheel_state'); // Ask backend for current state
+    });
+
+    // Listen for explicit initial state event
+    socket.on('initial_wheel_state', (state) => {
+        console.log('Received initial_wheel_state:', state);
+        updateGameState(state);
+        updatePlayersList(state.players);
+        updateCountdown(state.timer || state.break_timer); 
+    });
+
+}); // End DOMContentLoaded
+</script>
 {% endblock %}
 
 
