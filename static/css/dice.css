@@ -193,3 +193,10 @@
 .show {
     opacity: 1;
 }
+
+/* Style to highlight the current user's row in the leaderboard */
+.current-user-highlight {
+    border-left: 4px solid #ffcc00 !important; /* Add a distinct left border */
+    /* You could also change background, e.g.: */
+    /* background-color: rgba(255, 255, 0, 0.1); */
+}

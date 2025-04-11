@@ -382,38 +382,60 @@ class DiceGame {
     
     sortedPlayers.forEach((player, index) => {
       const playerRow = document.createElement('div');
-      playerRow.className = 'player-row nes-container is-rounded is-dark'; 
+      // Simpler row structure
+      playerRow.className = 'player-row nes-text'; 
+      playerRow.style.padding = '8px';
+      playerRow.style.marginBottom = '5px'; 
+      playerRow.style.border = '2px solid #dedede'; // Simple border
+      playerRow.style.borderRadius = '4px';
+      playerRow.style.display = 'flex';
+      playerRow.style.justifyContent = 'space-between';
+      playerRow.style.alignItems = 'center';
       
+      let turnIndicatorText = '';
       // Highlight current player in active game
       if (this.gameStatus === 'active' && player.user_id === this.players[this.currentPlayerIndex]?.user_id) {
-        playerRow.classList.add('is-primary');
-        playerRow.classList.remove('is-dark'); 
+        playerRow.classList.add('is-primary'); // Keep NES primary highlight
+        turnIndicatorText = ' (Your Turn)'; // Add text indicator
       }
       
-      const playerInfo = document.createElement('div');
-      playerInfo.innerHTML = 
-        `<span class="player-rank">#${index + 1}</span> 
-         <span class="player-emoji">${player.emoji || '👤'}</span> 
-         <span class="player-name">${player.username}</span>`;
-      
-      const scoreDisplay = document.createElement('div');
+      // Consistent highlight for the viewing user
+      if (player.user_id === currentUserId) {
+           playerRow.classList.add('current-user-highlight'); 
+      }
+
+      // Left side: Rank, Name, Turn Indicator
+      const playerInfo = document.createElement('span');
+      playerInfo.style.fontWeight = 'bold';
+      playerInfo.textContent = `#${index + 1} ${player.username || 'Player'}${turnIndicatorText}`;
+
+      // Right side: Score and Rolls
+      const scoreDisplay = document.createElement('div'); // Container for score/rolls
       scoreDisplay.className = 'player-score';
+      scoreDisplay.style.textAlign = 'right';
+
+      const scoreText = document.createElement('span');
       if (this.gameStarted || this.gameEnded) {
-          scoreDisplay.textContent = `Score: ${player.score || 0}`;
+          scoreText.textContent = `Score: ${player.score || 0}`;
+          scoreDisplay.appendChild(scoreText);
+
           // Add roll history display (list of single numbers)
           if (player.rolls && player.rolls.length > 0) {
               const rollsText = player.rolls.join(', ');
               const rollsDiv = document.createElement('div');
               rollsDiv.className = 'player-rolls nes-text is-small';
+              rollsDiv.style.marginTop = '3px';
               rollsDiv.textContent = `Rolls: [${rollsText}]`;
               scoreDisplay.appendChild(rollsDiv); // Append rolls below score
           }
       } else {
-          scoreDisplay.textContent = `Joined`;
+          scoreText.textContent = `Joined`;
+          scoreDisplay.appendChild(scoreText);
       }
       
       playerRow.appendChild(playerInfo);
       playerRow.appendChild(scoreDisplay);
+
       this.playersContainer.appendChild(playerRow);
     });
   }
