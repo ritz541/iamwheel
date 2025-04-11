@@ -1,68 +1,55 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multiplayer Dice Game</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/nes-custom.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/wheel.css') }}">
-    <style>
-        .dice-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-top: 2rem;
-        }
-        .dice {
-            width: 100px;
-            height: 100px;
-            background-color: white;
-            border-radius: 10px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 3rem;
-            box-shadow: 0 0 10px rgba(0,0,0,0.3);
-            margin-bottom: 1rem;
-        }
-        .leaderboard {
-            width: 100%;
-            max-width: 600px;
-            margin: 2rem auto;
-        }
-        .player-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.5rem;
-            border-bottom: 1px solid #ddd;
-        }
-        .current-player {
-            background-color: #f0f8ff;
-            font-weight: bold;
-        }
-        .timer {
-            font-size: 1.5rem;
-            margin: 1rem 0;
-        }
-    </style>
-</head>
-<body>
-    {% extends "base.html" %}
-    {% block content %}
-    <div class="dice-container">
-        <h1>Multiplayer Dice Game</h1>
-        <div class="timer">Time left: <span id="timer">10</span>s</div>
-        <div class="dice" id="dice">?</div>
-        <button id="roll-btn" class="nes-btn is-primary">Roll Dice</button>
-        
-        <div class="leaderboard">
-            <h2>Leaderboard</h2>
-            <div id="players-container">
-                <!-- Player rows will be added dynamically -->
+{% extends "base.html" %}
+
+{% block title %}Multiplayer Dice Game{% endblock %}
+
+{% block head %}
+    {{ super() }} 
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dice.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="card nes-container with-title is-centered">
+        <h1 class="title">Multiplayer Dice Game</h1>
+        <div class="card-body">
+            <div class="game-info mb-3">
+                <span class="nes-text is-primary">Status: <span id="game-status">{{ initial_game_state.status if initial_game_state else 'Loading...' }}</span></span> | 
+                <span class="nes-text is-success">Round: <span id="current-round">{{ initial_game_state.current_round if initial_game_state and initial_game_state.status == 'active' else '-' }}</span> / 3</span>
+            </div>
+
+            <div class="timer mb-3 nes-text is-warning" id="timer-container">
+                <span id="timer-label">Loading Timer</span>: <span id="timer">--</span>s
+            </div>
+
+            <div class="dice-area mb-3">
+                <div class="nes-badge">
+                     <span class="is-primary" id="dice">?</span>
+                </div>
+            </div>
+            
+            <div id="game-controls" class="mb-3">
+                <!-- Buttons will be dynamically updated by JS -->
+                <button id="create-game-btn" class="nes-btn is-primary">Create Game (₹100)</button>
+                <button id="join-game-btn" class="nes-btn is-success">Join Game (₹100)</button>
+                <button id="roll-btn" class="nes-btn is-warning is-disabled" disabled>Roll Dice</button>
+            </div>
+            
+            <div class="leaderboard nes-container with-title is-dark">
+                <h2 class="title">Leaderboard</h2>
+                <div id="players-container">
+                    <!-- Player rows will be added dynamically -->
+                    <p>Waiting for players...</p>
+                </div>
             </div>
         </div>
     </div>
-    <script src="{{ url_for('static', filename='js/dice.js') }}"></script>
-    {% endblock %}
-</body>
-</html>
+</div>
+
+<script>
+    // Pass initial game state and user ID from Flask to JavaScript
+    // initial_game_state is already a JSON string from json_dumps in the route
+    const initialGameState = JSON.parse('{{ initial_game_state | safe }}'); 
+    const currentUserId = '{{ current_user.id | safe if current_user.is_authenticated else "null" }}'; 
+</script>
+<script src="{{ url_for('static', filename='js/dice.js') }}"></script>
+{% endblock %}

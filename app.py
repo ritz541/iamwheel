@@ -96,8 +96,28 @@ class DateTimeEncoder(json.JSONEncoder):
             return obj.decode('utf-8')
         return super().default(obj)
 
+# Helper to dump JSON using custom encoder
 def json_dumps(obj):
     return json.dumps(obj, cls=DateTimeEncoder)
+
+# Add the make_serializable function definition here
+def make_serializable(data):
+    """Recursively converts datetime and ObjectId to strings in dicts/lists."""
+    if isinstance(data, dict):
+        return {k: make_serializable(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [make_serializable(i) for i in data]
+    elif isinstance(data, datetime):
+        return data.isoformat()
+    elif isinstance(data, ObjectId):
+        return str(data)
+    elif isinstance(data, bytes):
+        try:
+            return data.decode('utf-8')
+        except UnicodeDecodeError:
+            return repr(data) # Fallback for non-utf8 bytes
+    else:
+        return data
 
 # Initialize Flask-Session
 Session(app)
@@ -162,6 +182,9 @@ class GameState:
             'game_type': 'dice'
         }
         self._save_initial_states()
+        # Initial reset
+        self.reset_game('wheel')
+        self.reset_game('dice')
     
     def _save_initial_states(self):
         # Store initial states in MongoDB
@@ -206,8 +229,56 @@ class GameState:
         else:
             self.dice_game = current
 
+    def verify_joining_fee(self, user_id, amount=100):
+        """Verify user has sufficient balance for joining fee"""
+        user = db.users.find_one({'_id': ObjectId(user_id)})
+        if not user or user.get('user_data', {}).get('wallet_balance', 0) < amount:
+            return False
+        return True
+            
+    def deduct_joining_fee(self, user_id, amount=100):
+        """Deduct joining fee from user's wallet"""
+        result = db.users.update_one(
+            {'_id': ObjectId(user_id)},
+            {'$inc': {'user_data.wallet_balance': -amount}}
+        )
+        # Return True if the update modified a document, False otherwise
+        return result.modified_count > 0 
+
+    def reset_game(self, game_type='wheel'):
+        """Reset game state for a new round"""
+        if game_type == 'wheel':
+            self.wheel_game = {
+                'status': 'joining',
+                'players': [],
+                'timer': 90,
+                'break_timer': 15,
+                'is_break': False,
+                'game_id': str(uuid.uuid4()), # Generate new ID
+                'created_at': datetime.now(timezone.utc),
+                'game_type': 'wheel'
+            }
+            # Persist reset state if necessary
+            # self._save_initial_states() 
+        elif game_type == 'dice':
+            self.dice_game = {
+                'status': 'waiting',
+                'players': [],
+                'timer': 120,
+                'player_timer': 10,
+                'current_round': 0,
+                'current_player_index': 0,
+                'game_id': str(uuid.uuid4()), # Generate new ID
+                'created_at': datetime.now(timezone.utc),
+                'game_type': 'dice'
+            }
+            # Persist reset state if necessary
+            # self._save_initial_states() 
+        else:
+             app.logger.warning(f"Attempted to reset unknown game type: {game_type}")
+
 # Socket.IO setup
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", json=json)
 
 @socketio.on('place_bet')
 @rate_limit(limit=5, period=10)  # Limit to 5 bets per 10 seconds
@@ -1467,100 +1538,187 @@ def manual_withdraw():
 
 @app.route('/dice', methods=['POST', 'GET'])
 def dice():
-    return render_template('dice.html')
+    # Fetch current dice game state
+    current_game_state = game_state.get_game_state('dice')
+    # Serialize using custom encoder
+    serializable_state = json_dumps(current_game_state)
+    return render_template('dice.html', initial_game_state=serializable_state)
+
+@socketio.on('create_dice_game')
+def handle_create_dice_game():
+    if not current_user.is_authenticated:
+        return {'error': 'Authentication required'}
+
+    # Get current game state
+    game_data = game_state.get_game_state('dice')
+
+    # Verify fee
+    if not game_state.verify_joining_fee(current_user.id):
+        return {'error': 'Insufficient funds (₹100 required)'}
+
+    # Only allow creation if no active game exists
+    if game_data.get('status') == 'waiting' and not game_data.get('players'):
+        # Deduct fee *before* creating game state
+        if not game_state.deduct_joining_fee(current_user.id):
+             return {'error': 'Failed to deduct fee'} # Handle deduction failure
+
+        player_data = {
+            'username': current_user.user_data['username'],
+            'emoji': current_user.user_data.get('emoji', '🎲'),
+            'user_id': current_user.id,
+            'score': 0,
+            'rolls': []
+        }
+
+        # Create new game with first player, set timer
+        game_state.update_game_state({
+            'players': [player_data],
+            'timer': 120, # Set the 2-minute joining timer
+            'created_at': datetime.now(timezone.utc),
+            'status': 'waiting' # Ensure status is waiting
+            # Keep existing game_id from reset_game
+        }, 'dice')
+
+        # Start countdown thread
+        socketio.start_background_task(dice_game_countdown)
+        app.logger.info(f"Dice game created by {current_user.user_data['username']}, starting countdown.")
+
+        # Broadcast game created (send the whole state, making it serializable)
+        game_data = game_state.get_game_state('dice')
+        serializable_data = make_serializable(game_data)
+        emit('dice_game_created', serializable_data, broadcast=True)
+
+        return {'success': True, 'status': 'waiting'}
+    elif game_data.get('status') != 'waiting':
+         return {'error': 'Game is already active'}
+    else: # status == 'waiting' but players exist
+         return {'error': 'Game already created, please join instead'}
+
 
 @socketio.on('join_dice_game')
 def handle_join_dice_game():
     if not current_user.is_authenticated:
         return {'error': 'Authentication required'}
-        
+
     # Get current game state
     game_data = game_state.get_game_state('dice')
     
+    # Check if user is already in the game
+    if any(p['user_id'] == current_user.id for p in game_data.get('players', [])):
+        return {'error': 'You are already in the game'}
+
+    # Verify fee *before* joining
+    if not game_state.verify_joining_fee(current_user.id):
+        return {'error': 'Insufficient funds (₹100 required)'}
+
     # Check if game is in waiting state and not full
-    if game_data['status'] == 'waiting' and len(game_data['players']) < 5:
+    if game_data.get('status') == 'waiting' and len(game_data.get('players', [])) < 5:
+        # Deduct fee *before* adding player
+        if not game_state.deduct_joining_fee(current_user.id):
+            return {'error': 'Failed to deduct fee'}
+
         player_data = {
             'username': current_user.user_data['username'],
-            'emoji': current_user.user_data['emoji'],
+            'emoji': current_user.user_data.get('emoji', '🎲'),
             'user_id': current_user.id,
             'score': 0,
             'rolls': []
         }
-        
-        # If first player, start 2-minute countdown
-        if not game_data['players']:
-            game_state.update_game_state({
-                'players': [player_data],
-                'timer': 120,
-                'created_at': datetime.now(timezone.utc)
-            }, 'dice')
-            
-            # Start countdown thread
-            socketio.start_background_task(dice_game_countdown)
-        else:
-            # Add player to existing game
-            game_state.update_game_state({
-                'players': [*game_data['players'], player_data]
-            }, 'dice')
-        
+
+        # Check if this is the first player joining (should be handled by create, but double check)
+        # if not game_data.get('players'):
+        #     game_state.update_game_state({'players': [player_data], 'timer': 120}, 'dice')
+        #     socketio.start_background_task(dice_game_countdown)
+        # else:
+        # Add player to existing game using $push simulation
+        current_players = game_data.get('players', [])
+        current_players.append(player_data)
+        game_state.update_game_state({'players': current_players}, 'dice')
+
         # Broadcast updated player list
-        emit('dice_player_joined', {
-            'players': game_state.get_game_state('dice')['players'],
-            'count': len(game_state.get_game_state('dice')['players']),
-            'timer': game_state.get_game_state('dice')['timer'],
-            'status': 'waiting'
-        }, broadcast=True)
-        
+        # Emit the entire updated game state, making it serializable
+        game_data = game_state.get_game_state('dice')
+        serializable_data = make_serializable(game_data)
+        emit('dice_player_joined', serializable_data, broadcast=True)
+
         return {'success': True, 'status': 'waiting'}
-    elif game_data['status'] == 'waiting' and len(game_data['players']) >= 5:
+    elif game_data.get('status') == 'waiting' and len(game_data.get('players', [])) >= 5:
         return {'error': 'Game room is full'}
     else:
-        return {'error': 'Game is already in progress'}
+        return {'error': 'Game is not in waiting state or is full'}
 
 def dice_game_countdown():
+    app.logger.info(f"Starting dice game countdown thread for game {game_state.get_game_state('dice').get('game_id')}")
     while True:
-        game_data = game_state.get_game_state('dice')
-        
-        if game_data['status'] == 'waiting':
-            # Update timer
-            if game_data['timer'] > 0:
-                game_state.update_game_state({'timer': game_data['timer'] - 1}, 'dice')
-                socketio.emit('dice_timer_update', {
-                    'time': game_data['timer'] - 1,
+        try:
+            game_data = game_state.get_game_state('dice')
+            game_id = game_data.get('game_id', 'N/A') # Get game_id for logging
+            current_status = game_data.get('status')
+
+            if current_status != 'waiting':
+                app.logger.info(f"[Dice Countdown {game_id}] Status changed to {current_status}. Exiting loop.")
+                break # Exit if game status is no longer 'waiting'
+
+            current_timer = game_data.get('timer', 0)
+            # app.logger.debug(f"[Dice Countdown {game_id}] Current timer: {current_timer}") # Optional debug log
+
+            if current_timer > 0:
+                # Decrement timer
+                game_state.update_game_state({'timer': current_timer - 1}, 'dice')
+                app.logger.info(f"[Dice Countdown {game_id}] Timer decremented to {current_timer - 1}")
+
+                # Prepare data for emit
+                timer_update_data = {
+                    'time': current_timer - 1,
                     'status': 'waiting'
-                }, broadcast=True)
+                }
+                # Use socketio.emit in background thread, no broadcast=True needed
+                socketio.emit('dice_timer_update', make_serializable(timer_update_data))
+                # app.logger.debug(f"[Dice Countdown {game_id}] Emitted timer update: {timer_update_data}")
+                
+                # Sleep before next iteration
                 socketio.sleep(1)
             else:
-                # Timer expired - check player count
-                if len(game_data['players']) >= 2:
-                    # Start game with 3 rounds
+                # Timer expired
+                app.logger.info(f"[Dice Countdown {game_id}] Joining timer expired.")
+                players = game_data.get('players', [])
+                if len(players) >= 2:
+                    app.logger.info(f"[Dice Countdown {game_id}] Starting game with {len(players)} players.")
+                    # ... (Start game logic) ...
                     game_state.update_game_state({
                         'status': 'active',
                         'current_round': 1,
                         'current_player_index': 0,
                         'player_timer': 10
                     }, 'dice')
-                    
-                    # Start player turn timer
-                    socketio.start_background_task(dice_player_turn_countdown)
-                    
-                    # Notify all players game is starting
-                    socketio.emit('dice_game_start', {
-                        'players': game_data['players'],
-                        'current_player': game_data['players'][0]['username'],
-                        'round': 1,
-                        'status': 'active'
-                    }, broadcast=True)
+                    updated_game_data = game_state.get_game_state('dice')
+                    # Use socketio.emit in background thread, no broadcast=True needed
+                    socketio.emit('dice_game_start', make_serializable(updated_game_data))
+                    # ... (logging) ...
                 else:
-                    # Not enough players - cancel game
+                    app.logger.info(f"[Dice Countdown {game_id}] Not enough players ({len(players)}). Cancelling game.")
+                    # ... (Cancel game logic) ...
                     game_state.update_game_state({
                         'status': 'cancelled',
                         'players': []
                     }, 'dice')
-                    socketio.emit('dice_game_cancelled', {
-                        'reason': 'Not enough players'
-                    }, broadcast=True)
-                break
+                    cancel_data = {'reason': 'Not enough players'}
+                    # Use socketio.emit in background thread, no broadcast=True needed
+                    socketio.emit('dice_game_cancelled', make_serializable(cancel_data))
+                    # Use socketio.emit in background thread
+                    socketio.emit('dice_game_cancelled', make_serializable(cancel_data), broadcast=True)
+                    # ... (refund/reset logic) ...
+                
+                app.logger.info(f"[Dice Countdown {game_id}] Timer logic complete. Exiting loop.")
+                break # Exit loop after handling timer expiry
+                
+        except Exception as e:
+            # Log any exception that occurs within the loop
+            app.logger.error(f"[Dice Countdown {game_id}] Error in countdown loop: {e}", exc_info=True)
+            # Optionally break the loop on error, or just log and continue (might spam logs)
+            break # Exit loop on error to prevent potential spam
+
+    app.logger.info(f"Exiting dice game countdown thread for game {game_state.get_game_state('dice').get('game_id')}")
 
 @socketio.on('roll_dice')
 @rate_limit(limit=1, period=5)  # Limit to 1 roll per 5 seconds
@@ -1596,15 +1754,16 @@ def handle_dice_roll(data):
         'player_timer': 10  # Reset timer for next player
     }, 'dice')
     
-    # Broadcast result
-    emit('dice_result', {
-        'player': current_user.user_data['username'],
+    # Broadcast result (make sure data is serializable)
+    result_data = {
+        'player': current_player['username'],
         'dice1': dice1,
         'dice2': dice2,
         'total': total,
-        'current_score': updated_players[game_data['current_player_index']]['score'],
+        'current_score': current_player['score'],
         'round': game_data['current_round']
-    }, broadcast=True)
+    }
+    emit('dice_result', make_serializable(result_data), broadcast=True)
     
     # Move to next player
     next_player_index = (game_data['current_player_index'] + 1) % len(game_data['players'])
@@ -1635,15 +1794,13 @@ def handle_dice_roll(data):
                 'status': 'completed'
             })
             
-            # Notify all players
-            socketio.emit('dice_game_end', {
+            # Notify all players (make data serializable)
+            end_game_data = {
                 'winner': winner['username'],
                 'prize': prize,
-                'final_scores': [{
-                    'username': p['username'],
-                    'score': p['score']
-                } for p in game_data['players']]
-            }, broadcast=True)
+                'final_scores': [{'username': p['username'], 'score': p['score']} for p in game_data['players']]
+            }
+            emit('dice_game_end', make_serializable(end_game_data), broadcast=True)
             
             # Reset game state
             game_state.update_game_state({
@@ -1662,6 +1819,10 @@ def handle_dice_roll(data):
             socketio.emit('dice_round_start', {
                 'round': game_data['current_round'] + 1
             }, broadcast=True)
+
+        # Notify about game update after turn advance (includes new player index and timer)
+        final_state = game_state.get_game_state('dice')
+        emit('dice_game_update', make_serializable(final_state), broadcast=True)
 
 
 if __name__ == '__main__':
