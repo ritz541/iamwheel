@@ -1106,38 +1106,63 @@ def wallet():
         else:
             transaction['status_color'] = 'danger'
     
-    # Get user's game history directly from games collection
+    # Get user's game history from BOTH collections
     game_history = []
-    games = db.games.find({
+    user_id_str = str(current_user.id)
+
+    # 1. Fetch Wheel Game history (existing logic)
+    wheel_games = db.games.find({
         'players': {
             '$elemMatch': {
-                'id': str(current_user.id)
+                'id': user_id_str
             }
         }
     }).sort('created_at', -1)
 
-    for game in games:
-        # Use .get() to safely access 'winner' and provide a default (None)
-        # Comparison with None will result in False if 'winner' key is missing
+    for game in wheel_games:
         is_winner = game.get('winner') == current_user.user_data['username']
-        
-        # Safely get winner_prize, defaulting to 0 if missing
         winner_prize = game.get('winner_prize', 0) 
-        
         game_history.append({
-            'date': game.get('created_at'), # Also use .get for safety
-            'game_type': 'Wheel Game', # Assuming only wheel games for now
+            'game_doc': game, # Keep original doc for potential future use
+            'date': game.get('created_at'), 
+            'game_type': 'Wheel', # Renamed for brevity
             'won': is_winner,
-            'amount': winner_prize if is_winner else -100,  # Use the fetched winner_prize
-            'total_pool': game.get('total_pool', 0), # Safe access
-            'platform_fee': game.get('platform_fee', 0) # Safe access
+            'amount': winner_prize if is_winner else -100, 
+            'details': f"Pool: ₹{game.get('total_pool', 0)}, Fee: ₹{game.get('platform_fee', 0)}"
         })
+
+    # 2. Fetch Dice Game history
+    dice_games = db.dice_games.find({
+        # Query if the user_id exists within the players array
+        'players.user_id': user_id_str 
+    }).sort('completed_at', -1) # Sort by completion time for dice
+
+    for game in dice_games:
+        # Check if current user is the winner
+        is_winner = game.get('winner') == user_id_str
+        prize = game.get('prize', 0)
+        entry_fee = 100 # Assuming fixed entry fee
+
+        # Find the player's specific data in the players array
+        player_data = next((p for p in game.get('players', []) if p.get('user_id') == user_id_str), None)
+        player_score = player_data.get('score', 0) if player_data else 'N/A'
+        player_rolls = player_data.get('rolls', []) if player_data else []
+        rolls_str = ', '.join(map(str, player_rolls))
+
+        game_history.append({
+            'game_doc': game, # Keep original doc
+            'date': game.get('completed_at') or game.get('created_at'), # Use completed_at if available
+            'game_type': 'Dice', 
+            'won': is_winner,
+            'amount': prize if is_winner else -entry_fee,
+            'details': f"Score: {player_score} (Rolls: {rolls_str})" # Show score/rolls as details
+        })
+
+    # 3. Sort combined history by date descending
+    game_history.sort(key=lambda x: x.get('date') or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     
     # Pass the original lists with datetime objects to the template
-    # Ensure transactions are serializable if needed (unlikely here)
-    # serializable_transactions = make_serializable(transactions)
-    # serializable_game_history = make_serializable(game_history)
-
+    # ... (rest of the function remains the same) ...
     return render_template('wallet.html', 
                            transactions=transactions, 
                            game_history=game_history)

@@ -373,8 +373,7 @@
                                     <th>Game</th>
                                     <th>Result</th>
                                     <th>Amount</th>
-                                    <th>Total Pool</th>
-                                    <th>Platform Fee</th>
+                                    <th>Details</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -388,8 +387,7 @@
                                         </span>
                                     </td>
                                     <td>₹{{ game.amount }}</td>
-                                    <td>₹{{ game.total_pool }}</td>
-                                    <td>₹{{ game.platform_fee }}</td>
+                                    <td class="small-text">{{ game.details }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
