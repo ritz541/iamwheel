@@ -71,32 +71,58 @@ function showNesDialog(message, type = 'default', options = {}) {
     titleContainer.innerHTML = `<i class="${iconClass}"></i> ${titleText}`;
     form.appendChild(titleContainer);
 
-    const messageText = document.createElement('p');
-    messageText.style.marginTop = '1rem';
-    messageText.style.marginBottom = '1.5rem';
-    messageText.style.textAlign = 'center'; // Center message text
+    const messageBody = document.createElement('div'); // Use a div for more control
+    messageBody.style.marginTop = '1rem';
+    messageBody.style.marginBottom = '1.5rem';
+    messageBody.style.textAlign = 'center';
 
     if (isWinnerDialog) {
         // Construct winner message with highlighting
-        let scoreListHtml = '<hr style="margin: 1rem 0;">'; // Add a separator
+        const congratsText = document.createElement('p');
+        congratsText.innerHTML = 
+            `Congratulations <strong class="winner-name nes-text is-warning">${winnerName}</strong>!`; // Use nes-text is-warning for name
+        messageBody.appendChild(congratsText);
+
+        const prizeText = document.createElement('p');
+        prizeText.style.marginTop = '0.5rem';
+        prizeText.innerHTML = `You won the prize of <strong class="nes-text is-success">₹${prize}</strong>!`; // Highlight prize
+        messageBody.appendChild(prizeText);
+
+        messageBody.appendChild(document.createElement('hr')); // Separator
+
         if (players && players.length > 0) {
+            const scoreTitle = document.createElement('p');
+            scoreTitle.style.marginBottom = '0.5rem';
+            scoreTitle.style.textAlign = 'left';
+            scoreTitle.innerHTML = '<strong>Final Scores:</strong>';
+            messageBody.appendChild(scoreTitle);
+
             // Sort players by score descending
             const sortedPlayers = [...players].sort((a, b) => (b.score || 0) - (a.score || 0));
-            scoreListHtml += '<p style="margin-bottom: 0.5rem; text-align: left;"><strong>Final Scores:</strong></p>';
-            scoreListHtml += '<ul style="list-style: none; padding-left: 1rem; text-align: left;">';
-            sortedPlayers.forEach(p => {
-                scoreListHtml += `<li>${p.username || 'Player'}: ${p.score || 0}</li>`;
-            });
-            scoreListHtml += '</ul>';
-        }
+            const scoreList = document.createElement('ul');
+            scoreList.className = 'nes-list is-disc'; 
+            scoreList.style.textAlign = 'left';
+            scoreList.style.marginBottom = '0'; 
 
-        messageText.innerHTML = 
-            `Congratulations <strong class="winner-name">${winnerName}</strong>! <br> You won the prize of ₹${prize}!` +
-            scoreListHtml; // Append the score list
+            sortedPlayers.forEach(p => {
+                const listItem = document.createElement('li');
+                // Format the rolls array, handle if it's missing
+                const rollsText = p.rolls && Array.isArray(p.rolls) ? `(Rolls: ${p.rolls.join(', ')})` : '(No rolls data)';
+                listItem.textContent = `${p.username || 'Player'}: ${p.score || 0} ${rollsText}`;
+                
+                 if (p.username === winnerName) {
+                     listItem.style.fontWeight = 'bold'; 
+                 }
+                 // Add small spacing below each item for readability
+                 listItem.style.marginBottom = '0.3rem'; 
+                scoreList.appendChild(listItem);
+            });
+            messageBody.appendChild(scoreList);
+        }
     } else {
-        messageText.textContent = message; // Use the standard message
+        messageBody.textContent = message; // Use the standard message
     }
-    form.appendChild(messageText);
+    form.appendChild(messageBody);
 
     // Add close button menu
     const menu = document.createElement('menu');
@@ -373,23 +399,21 @@ class DiceGame {
     });
 
     this.socket.on('dice_game_end', (data) => {
-      console.log("[dice_game_end] Received data:", JSON.stringify(data)); // Log raw data from server
+      console.log("[dice_game_end] Received data:", JSON.stringify(data)); 
       this.gameStatus = 'completed';
-      // Update UI state - might not update scores correctly from final_scores, but update other things
       this.updateUIFromState(data); 
-      console.log("[dice_game_end] this.players state (may not have final scores):", JSON.stringify(this.players)); // Log players state 
+      console.log("[dice_game_end] this.players state (may not have final scores):", JSON.stringify(this.players)); 
       
-      // Delay the winner dialog by 4 seconds (1s animation + 3s pause)
+      // Delay the winner dialog by 1 second 
       setTimeout(() => {
-          // Use data.final_scores directly as it contains the correct final scores from the server event
           const dialogOptions = { 
               winnerName: data.winner, 
               prize: data.prize, 
-              players: data.final_scores // Use the final_scores array from the event data
+              players: data.final_scores 
           }; 
-          console.log("[dice_game_end setTimeout] Options being passed to showNesDialog:", JSON.stringify(dialogOptions)); // Log options just before call
+          console.log("[dice_game_end setTimeout] Options being passed to showNesDialog:", JSON.stringify(dialogOptions)); 
           showNesDialog('Game Over!', 'success', dialogOptions); 
-      }, 4000); 
+      }, 1000); // Reduced delay to 1000ms
     });
 
     this.socket.on('dice_game_cancelled', (data) => {
