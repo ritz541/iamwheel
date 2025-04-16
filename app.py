@@ -21,11 +21,11 @@ import razorpay
 from authlib.integrations.flask_client import OAuth
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
-<<<<<<< Updated upstream
-=======
+
+
 from pymongo.collection import ReturnDocument
 from flask import abort, request
->>>>>>> Stashed changes
+
 from pymongo.collection import ReturnDocument
 
 # Load environment variables
