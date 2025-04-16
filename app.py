@@ -21,6 +21,11 @@ import razorpay
 from authlib.integrations.flask_client import OAuth
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+<<<<<<< Updated upstream
+=======
+from pymongo.collection import ReturnDocument
+from flask import abort, request
+>>>>>>> Stashed changes
 
 # Load environment variables
 load_dotenv()
@@ -252,6 +257,11 @@ def handle_timer(data):
             socketio.emit('break_timer', {'duration': 15})
     
     socketio.emit('timer', {'time': max(0, current_time)})
+
+@app.before_request
+def block_dotfiles():
+    if request.path.startswith('/.') or '/.' in request.path:
+        abort("Fuck", 404)
 
 # Example of rate-limited API endpoint
 @app.route('/api/place_bet', methods=['POST'])
